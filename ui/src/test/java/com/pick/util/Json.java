@@ -1,4 +1,5 @@
 package com.pick.util;
+// Test only: the apps keep their own Json (the reader); the feedback test reads its notes back with this copy
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
