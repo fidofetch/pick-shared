@@ -41,6 +41,9 @@ Some commands end on a later frame, and the next command on the line waits for t
 - `wait <s>` and `frames <n>`: let a change settle (a slide, a resize) before a shot.
 - Engine `baked`: until the bricks around the camera are baked. Builder `finished`: until the run ends.
 
+Engine settings: `get [section]` lists the saved settings, `set sky.haze 0.3` changes one and keeps it (the
+section checks and clamps the value as it does at start).
+
 Engine physics: `pile [n]`, `throw sphere|box`, `bodies [clear]` (counts and the step cost), `gravity [on|off]`.
 - Builder `open`, `new`, `leave`: until the slide between the shelf and the editor ends.
 
