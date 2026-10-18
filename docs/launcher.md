@@ -1,17 +1,24 @@
-# The launcher (start page)
+# The launcher (the shelf)
 
-One window that opens the three parts of Worldseed:
+The first screen of Worldseed (look and rules: [design-language.md](design-language.md)). It opens on **the
+shelf**: the planets you can play, each floating in a small glass case in a dark cabinet that fades to black
+at both ends. Choose one (click, arrows, mouse wheel) and **Play** opens it in the engine
+(`voxel/gradlew run -Dvoxel.world=<its package>`). The empty case at the end is **New planet** (the Builder with
+a new planet: a long project, so it is never the first thing offered).
 
-| Card | Opens | How |
-|---|---|---|
-| **Play** | the engine (voxel) | `voxel/gradlew run` |
-| **Build planets** | the Builder (world-builder) | `world-builder/gradlew runBuilder` |
-| **Make maps** | the Builder, straight into the Studio with the newest baked planet | `runBuilder -Dbuilder.run="open baked; studio on"` |
+The workshop is in the corner **Menu**: Build planets (the Builder), Make maps (the Builder, straight into the
+Studio with the newest baked planet: `-Dbuilder.run="open baked; studio on"`), New planet, Options.
 
 Each app runs as its own program, built from its repo first (so it is always the newest code), and keeps running
-when the launcher closes. The app opened last has the accent button; a running app's button is **Stop**. The line
-under each button says what it is doing (its newest log line); click it to open the whole log
-(`~/.cache/pick-launcher/<app>.log`).
+when the launcher closes. Under Play a line says what it is doing; if it stopped with an error, the line says
+the first error in its log (click it for the whole log, `~/.cache/pick-launcher/<app>.log`).
+
+## Where the planets come from
+
+Every baked World Package (a folder with `world.json`) in: `<projects>/world-builder/worlds/*/bake/world` (the
+Builder run from its repo), `~/WorldSeed/worlds/*/bake/world` (installed), `<projects>/world-packages/*`, and any
+folders in Options' "Planets also from" (separated by `;`). Newest first; looked for again every few seconds.
+The globes are drawn from each package's own heights, ice, lakes and plant cover.
 
 ## Starting it
 
@@ -22,9 +29,11 @@ under each button says what it is doing (its newest log line); click it to open 
 
 `tools/launcher` finds a JDK when `JAVA_HOME` is not set (the newest in `~/.jdks`).
 
-## Options (under the cards)
+## Options (Menu, Options...)
 
 - **Projects folder**: the folder that holds `voxel`, `world-builder` and `pick-shared` (`~/IdeaProjects`).
+- **Planets also from**: more folders of planets.
+- **Reduce motion**: the shelf jumps instead of sliding, and the planets stop turning.
 - **Agent console**: open the apps with their console port (engine 47100, Builder 47101), so an agent can drive
   them with `tools/console.py`.
 - **Text size**: this page only; each app has its own in its Settings.
@@ -47,10 +56,13 @@ python3 tools/console.py --port 47102 "shot home.png send"
 
 | Command | Does |
 |---|---|
-| `open <engine\|builder\|studio>`, `stop <...>` | a card's button |
+| `planets`, `pick <n\|name\|new>`, `play` | the shelf: list, choose a case, Play |
+| `open <engine\|builder\|studio>`, `stop <...>` | open (engine: the chosen planet) or close an app |
+| `menu`, `options` | open the corner menu, Options |
 | `apps` | each app's state and newest log line |
 | `text <100..200>`, `window <w> <h>` | Text size, window size |
 | `shot [file] [send]`, `film ...` | pictures (relative files go to `~/.cache/pick-launcher/shots`) |
 | `quit` | close the launcher (the apps stay open) |
 
-Variables: `projects`, `agentConsole`, `app.engine`, `app.builder`, `app.studio` (read only).
+Variables: `projects`, `moreShelves`, `agentConsole`, `planet` (the chosen case), `app.engine`, `app.builder`,
+`app.studio` (read only).

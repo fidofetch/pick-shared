@@ -16,7 +16,7 @@ if [[ "${1:-}" == "--desktop" ]]; then
 [Desktop Entry]
 Type=Application
 Name=Worldseed
-Comment=Play, build planets, make maps
+Comment=Play your planets
 Exec=$here/tools/launcher
 Terminal=false
 Categories=Game;Development;

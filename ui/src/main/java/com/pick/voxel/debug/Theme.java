@@ -22,6 +22,8 @@ public final class Theme {
     private static final float[] TEXT     = {0.925f, 0.882f, 0.804f, 1f};
     private static final float[] MUTED    = {0.659f, 0.592f, 0.498f, 1f};
     private static final float[] ON_ACCENT = {0.110f, 0.071f, 0.031f, 1f};
+    // For drawing your own shapes and text in the theme's colours (docs/design-language.md): copies, so the theme stays put
+    public static final float[] TEXT_RGB = TEXT.clone(), MUTED_RGB = MUTED.clone(), EDGE_RGB = EDGE.clone();
 
     public static void apply() {
         ImGuiStyle s = ImGui.getStyle();
@@ -78,6 +80,7 @@ public final class Theme {
         col(ImGuiCol.ScrollbarBg, 0f, 0f, 0f, 0f);
         col(ImGuiCol.ScrollbarGrab, BORDER);
         col(ImGuiCol.ScrollbarGrabHovered, 0.380f, 0.298f, 0.220f, 1f);
+        col(ImGuiCol.ModalWindowDimBg, 0f, 0f, 0f, 0.6f);   // behind a dialog: the screen goes dark, not grey
         col(ImGuiCol.NavCursor, ACCENT);   // the keyboard focus ring: accent, so it is seen (8.8:1 on BG)
     }
 

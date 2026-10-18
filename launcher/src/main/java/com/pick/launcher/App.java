@@ -10,7 +10,7 @@ import java.util.List;
 
 // One thing the launcher opens: the engine, the Builder, or the Builder straight into the Studio. Each runs as its
 // own program, through its repo's Gradle (so it is always the newest build), with its output in a log file.
-//     app.start(projects, agentConsole)   from the launcher's main thread
+//     app.start(projects, agentConsole, custom, extra)   from the launcher's main thread
 //     app.state()                         closed, starting, running, failed
 final class App {
     enum Id { ENGINE, BUILDER, STUDIO }
@@ -31,7 +31,7 @@ final class App {
 
     // The command that starts it, from the folder that holds the repos (~/IdeaProjects). A line in the settings
     // ("engine.command = ...") replaces it; {projects} in it is that folder.
-    static List<String> command(Id id, Path projects, boolean agentConsole, String custom) {
+    static List<String> command(Id id, Path projects, boolean agentConsole, String custom, List<String> extra) {
         List<String> c = new ArrayList<>();
         if (custom != null && !custom.isBlank()) {
             for (String w : custom.trim().split("\\s+")) c.add(w.replace("{projects}", projects.toString()));
@@ -44,20 +44,21 @@ final class App {
         }
         if (agentConsole) c.add(id == Id.ENGINE ? "-Dvoxel.console" : "-Dbuilder.console");
         if (id == Id.STUDIO) c.add("-Dbuilder.run=open baked; studio on");   // the newest baked planet, in the Studio
+        if (extra != null) c.addAll(extra);   // which planet to play, or what to do first
         return c;
     }
 
     // The repo it needs, to say what is missing before trying
     static Path repo(Id id, Path projects) { return projects.resolve(id == Id.ENGINE ? "voxel" : "world-builder"); }
 
-    void start(Path projects, boolean agentConsole, String custom) throws IOException {
+    void start(Path projects, boolean agentConsole, String custom, List<String> extra) throws IOException {
         if (isRunning()) return;
         if ((custom == null || custom.isBlank()) && !Files.isDirectory(repo(id, projects)))
             throw new IOException(repo(id, projects) + " is not there: set the projects folder below");
         Files.createDirectories(logDir);
         Path log = log();
         Files.writeString(log, "");
-        var pb = new ProcessBuilder(command(id, projects, agentConsole, custom));
+        var pb = new ProcessBuilder(command(id, projects, agentConsole, custom, extra));
         pb.directory((custom == null || custom.isBlank() ? repo(id, projects) : projects).toFile());
         pb.redirectErrorStream(true);
         pb.redirectOutput(log.toFile());
@@ -89,6 +90,19 @@ final class App {
         String l = tail(log());
         if (l != null && !l.isBlank()) lastLine = l.length() > 140 ? l.substring(0, 140) + "..." : l;
         return lastLine;
+    }
+
+    // Why it stopped: the first error line of its log (not Gradle's "BUILD FAILED" at the end)
+    String reason() {
+        try {
+            List<String> lines = Files.readAllLines(log(), StandardCharsets.UTF_8);
+            for (String l : lines) {
+                String t = l.strip(), lo = t.toLowerCase();
+                if (t.isEmpty() || t.startsWith("*") || t.startsWith(">") || lo.contains("xdg_runtime_dir") || lo.startsWith("failure:") || lo.startsWith("build failed")) continue;
+                if (lo.contains("exception") || lo.contains("error")) return t.length() > 160 ? t.substring(0, 160) + "..." : t;
+            }
+        } catch (IOException | RuntimeException ignored) { }
+        return lastLine();
     }
 
     static String tail(Path file) {
