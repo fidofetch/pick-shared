@@ -1,0 +1,32 @@
+#!/bin/bash
+# Open the "Claude runs" window on Pick's desktop unless it is already open. Safe to call often.
+# Tries konsole, then ptyxis, then gnome-terminal, on the host when we run inside a distrobox.
+# Prints how to watch by hand when no window could be opened (no desktop, e.g. a cloud container).
+here=$(cd "$(dirname "$0")" && pwd)
+watch="$here/jobwatch"
+
+pgrep -f "python3 \S*jobs/jobwatch$" >/dev/null && { echo "Claude runs: already open"; exit 0; }
+
+run() {  # run on the host if we are in a container that has distrobox-host-exec
+  if [ -n "${CONTAINER_ID:-}" ] && command -v distrobox-host-exec >/dev/null; then distrobox-host-exec "$@"
+  else "$@"; fi
+}
+has() {
+  if [ -n "${CONTAINER_ID:-}" ] && command -v distrobox-host-exec >/dev/null; then
+    distrobox-host-exec sh -c "command -v $1" >/dev/null 2>&1
+  else command -v "$1" >/dev/null; fi
+}
+
+if [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+  echo "Claude runs: no desktop here; watch with  $watch"; exit 1
+fi
+if has konsole; then
+  run setsid konsole --hide-menubar -p tabtitle="Claude runs" -e "$watch" >/dev/null 2>&1 </dev/null &
+elif has ptyxis; then
+  run setsid ptyxis --new-window -- "$watch" >/dev/null 2>&1 </dev/null &
+elif has gnome-terminal; then
+  run setsid gnome-terminal --title="Claude runs" -- "$watch" >/dev/null 2>&1 </dev/null &
+else
+  echo "Claude runs: no terminal program found; watch with  $watch"; exit 1
+fi
+echo "Claude runs: opened"
