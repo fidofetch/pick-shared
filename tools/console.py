@@ -5,46 +5,104 @@ Start the app with its console flag first: -Dvoxel.console (port 47100) or -Dbui
     python3 tools/console.py "settings; wait 1; shot /tmp/settings.png"
     python3 tools/console.py --port 47101 help
     python3 tools/console.py < script.txt      one line per command line; stops at the first error
-Prints each answer; exits 1 if a line failed, 2 if nothing is listening. Standard library only.
+    python3 tools/console.py --for 5 "watch player.pos every 0.5; key w 3"
+                                               also print pushed lines (watches, topics) for 5 s after the answers
+    python3 tools/console.py -i                stay connected: type lines (or pipe them in), see everything as it comes
+Lines the app pushes (a watch, a topic you subscribed to) start with "# ". Prints each answer; exits 1 if a line
+failed, 2 if nothing is listening. Standard library only.
 """
 import argparse
 import os
+import queue
 import socket
 import sys
+import threading
+import time
 
-END_OK, END_ERROR = "## ok", "## error"
+END_OK, END_ERROR, PUSH = "## ok", "## error", "# "
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=int(os.environ.get("CONSOLE_PORT", "47100")))
     ap.add_argument("--timeout", type=float, default=310, help="seconds to wait for one answer")
+    ap.add_argument("--for", dest="follow", type=float, default=0, metavar="SECONDS",
+                    help="after the last answer, keep printing pushed lines this long")
+    ap.add_argument("-i", "--interactive", action="store_true",
+                    help="stay connected: send each line from stdin as it comes, print all that comes back")
+    ap.add_argument("--quiet-push", action="store_true", help="drop pushed lines (only answers)")
     ap.add_argument("line", nargs="*", help="a command line (several commands split by ';')")
     a = ap.parse_args()
-    lines = [" ".join(a.line)] if a.line else [l.strip() for l in sys.stdin if l.strip() and not l.startswith("#")]
     try:
         sock = socket.create_connection(("127.0.0.1", a.port), timeout=5)
     except OSError as e:
         print(f"nothing listening on 127.0.0.1:{a.port} ({e}); start the app with its console flag", file=sys.stderr)
         return 2
-    sock.settimeout(a.timeout)
+    sock.settimeout(None)
     f = sock.makefile("rw", encoding="utf-8", newline="\n")
-    for line in lines:
+    answers = queue.Queue()   # one entry per answer: True ok, False error, None the app hung up
+
+    def read():
+        try:
+            for raw in f:
+                line = raw.rstrip("\n")
+                if line == END_OK or line == END_ERROR:
+                    answers.put(line == END_OK)
+                elif line.startswith(PUSH):
+                    if not a.quiet_push:
+                        print(line, flush=True)
+                else:
+                    print(line, flush=True)
+        except (OSError, ValueError):
+            pass
+        answers.put(None)
+
+    threading.Thread(target=read, daemon=True).start()
+
+    def send(line):
         f.write(line + "\n")
         f.flush()
-        while True:
-            reply = f.readline()
-            if not reply:
-                print("the app closed the connection", file=sys.stderr)
-                return 1
-            reply = reply.rstrip("\n")
-            if reply == END_OK:
-                break
-            if reply == END_ERROR:
-                return 1
-            print(reply)
+
+    if a.interactive:
+        failed = False
+        if a.line:
+            send(" ".join(a.line))
+        try:
+            for line in sys.stdin:
+                if line.strip() and not line.startswith("#"):
+                    send(line.strip())
+        except KeyboardInterrupt:
+            pass
+        if not sys.stdin.isatty():   # piped in: the follow time, then wait for what is owed
+            time.sleep(a.follow)
+            sock.shutdown(socket.SHUT_WR)
+            while True:
+                r = answers.get()
+                if r is None:
+                    break
+                failed |= not r
+        return 1 if failed else 0
+
+    lines = [" ".join(a.line)] if a.line else [l.strip() for l in sys.stdin if l.strip() and not l.startswith("#")]
+    for line in lines:
+        send(line)
+        try:
+            r = answers.get(timeout=a.timeout)
+        except queue.Empty:
+            print(f"no answer after {a.timeout} s", file=sys.stderr)
+            return 1
+        if r is None:
+            print("the app closed the connection", file=sys.stderr)
+            return 1
+        if not r:
+            return 1
+    if a.follow > 0:
+        time.sleep(a.follow)   # the reader keeps printing pushed lines meanwhile
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

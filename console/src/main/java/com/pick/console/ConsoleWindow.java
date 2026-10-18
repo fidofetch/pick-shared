@@ -14,7 +14,7 @@ import java.util.List;
 
 // The console: a panel along the top of the screen with a command line, opened and closed with ` (the key left
 // of 1) or F1. It shows what was typed, what agents sent (marked "agent"), and the answers. Up and Down go
-// through earlier lines; Tab completes a command's name; Esc closes it.
+// through earlier lines; Tab completes a command's name, or a variable's after get, set and watch; Esc closes it.
 //     console.draw(winW, winH)   each frame, between ImGui.newFrame() and ImGui.render()
 //     console.isOpen()           while open, the app should free the mouse and keep keys from the game
 public final class ConsoleWindow {
@@ -92,10 +92,20 @@ public final class ConsoleWindow {
             } else if (d.getEventFlag() == ImGuiInputTextFlags.CallbackCompletion) {
                 String text = d.getBuf();
                 int start = text.lastIndexOf(';') + 1;
-                String word = text.substring(start).stripLeading();
-                if (word.contains(" ")) return;   // only the command's name completes
+                String part = text.substring(start).stripLeading();
+                List<String> words = Commands.split(part);
+                boolean varWord = words.size() >= 1 && part.contains(" ") && List.of("get", "set", "watch", "vars", "unwatch").contains(words.get(0));
+                String word = part.endsWith(" ") ? "" : words.isEmpty() ? "" : words.get(words.size() - 1);
+                if (part.contains(" ") && !varWord) return;   // the command's name, or a variable's name
+                if (varWord && words.get(0).equals("set") && (words.size() > 2 || (words.size() == 2 && part.endsWith(" ")))) return;
                 List<String> fits = new ArrayList<>();
-                for (String n : commands.all().keySet()) if (n.startsWith(word.toLowerCase())) fits.add(n);
+                if (varWord) { for (String n : commands.values("").keySet()) if (n.startsWith(word)) fits.add(n); }
+                else for (String n : commands.all().keySet()) if (n.startsWith(word.toLowerCase())) fits.add(n);
+                if (fits.size() > 1) {   // as far as they all agree
+                    String common = fits.get(0);
+                    for (String f : fits) while (!f.startsWith(common)) common = common.substring(0, common.length() - 1);
+                    if (common.length() > word.length()) { replace(d, text.substring(0, text.length() - word.length()) + common); return; }
+                }
                 if (fits.size() == 1) replace(d, text.substring(0, text.length() - word.length()) + fits.get(0) + " ");
                 else if (fits.size() > 1) commands.print(String.join("  ", fits));
             }

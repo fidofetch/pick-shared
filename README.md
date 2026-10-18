@@ -6,7 +6,7 @@ Code the engine ([voxel](https://github.com/fidofetch/voxel)) and World Seed
 | Module | What | Packages |
 |---|---|---|
 | `ui` | The look and the controls: colours and widget styles (`Theme`), widget helpers (`Ui`), the font and Text size (`UiFonts`, IBM Plex Sans), easing that honours Reduce motion (`Motion`), the Feedback panel (F9), a small JSON writer (for feedback notes), and the Settings page frame with its file (`SettingsPage`, `SettingsSection`, `SettingsFile`) | `com.pick.voxel.debug`, `com.pick.feedback`, `com.pick.util`, `com.pick.settings` |
-| `console` | The command console (F1 or `) and the agent hook: commands, the panel, the loopback server, `tools/console.py` | `com.pick.console` |
+| `console` | The command console (F1 or `) and the agent hook: commands, variables, watches and topics, the panel, the loopback server, `tools/console.py` | `com.pick.console` |
 
 The packages keep their old names, so the apps' imports did not change.
 

@@ -85,6 +85,12 @@ public final class SettingsPage {
         return kept;
     }
 
+    // A section keeps this key ("section.name"), saved yet or not
+    public boolean owns(String key) {
+        for (SettingsSection s : sections) if (key.startsWith(s.key() + ".")) return true;
+        return false;
+    }
+
     private SettingsSection owner(String key) {
         for (SettingsSection s : sections) if (key.startsWith(s.key() + ".")) return s;
         StringBuilder b = new StringBuilder();
