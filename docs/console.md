@@ -64,6 +64,12 @@ prints to its terminal).
 `alias walk "key w $1; get player.pos"`, then `walk 2`. `alias` lists them, `unalias <name>` removes one. They last
 until the app closes.
 
+**Pictures.** `shot [file] send` also returns the picture over the connection, as one line
+`png <name> <base64>`; `film every <s> [for <s>]` pushes one every s seconds as `# shot png <name> <base64>`
+(`film off` stops it). Neither shows the console. `console.py` saves them in `./received-shots` (or `--save-to`)
+and prints `picture saved: <path>` in place of the data. An app offers both by handing `commands.screenshots(...)`
+its way to save the next frame.
+
 When the connection ends, its watches stop and any key it held with `key <name> on` is let go.
 
 ### Engine (port 47100)
@@ -93,7 +99,7 @@ its result), `runlog` (the run's log as it is written).
 
 Some commands end on a later frame, and the next command on the line waits for them:
 
-- `shot [file]` saves the next frame without the console and answers with the file's path.
+- `shot [file] [send]` saves the next frame without the console and answers with the file's path (send: and the picture).
 - `wait <s>` and `frames <n>`: let a change settle (a slide, a resize) before a shot.
 - Engine `baked`: until the bricks around the camera are baked. Builder `finished`: until the run ends.
 - Builder `open`, `new`, `leave`: until the slide between the shelf and the editor ends.

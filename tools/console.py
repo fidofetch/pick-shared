@@ -8,10 +8,13 @@ Start the app with its console flag first: -Dvoxel.console (port 47100) or -Dbui
     python3 tools/console.py --for 5 "watch player.pos every 0.5; key w 3"
                                                also print pushed lines (watches, topics) for 5 s after the answers
     python3 tools/console.py -i                stay connected: type lines (or pipe them in), see everything as it comes
+    python3 tools/console.py "shot send"       the picture comes back over the connection (saved in ./received-shots)
+    python3 tools/console.py --for 10 "film every 2"   a picture every 2 s for 10 s
 Lines the app pushes (a watch, a topic you subscribed to) start with "# ". Prints each answer; exits 1 if a line
 failed, 2 if nothing is listening. Standard library only.
 """
 import argparse
+import base64
 import os
 import queue
 import socket
@@ -30,6 +33,8 @@ def main():
                     help="after the last answer, keep printing pushed lines this long")
     ap.add_argument("-i", "--interactive", action="store_true",
                     help="stay connected: send each line from stdin as it comes, print all that comes back")
+    ap.add_argument("--save-to", default="received-shots", metavar="DIR",
+                    help="where pictures sent back (shot send, film) are saved; default ./received-shots")
     ap.add_argument("--quiet-push", action="store_true", help="drop pushed lines (only answers)")
     ap.add_argument("line", nargs="*", help="a command line (several commands split by ';')")
     a = ap.parse_args()
@@ -42,10 +47,25 @@ def main():
     f = sock.makefile("rw", encoding="utf-8", newline="\n")
     answers = queue.Queue()   # one entry per answer: True ok, False error, None the app hung up
 
+    def picture(line):   # "png <name> <base64>" -> a file; prints where it went instead of the data
+        try:
+            _, name, data = line.split(" ", 2)
+            os.makedirs(a.save_to, exist_ok=True)
+            path = os.path.abspath(os.path.join(a.save_to, os.path.basename(name)))
+            with open(path, "wb") as out:
+                out.write(base64.b64decode(data))
+            return f"picture saved: {path}"
+        except (ValueError, OSError) as e:
+            return f"picture not saved: {e}"
+
     def read():
         try:
             for raw in f:
                 line = raw.rstrip("\n")
+                if line.startswith("png "):
+                    line = picture(line)
+                elif line.startswith(PUSH + "shot png "):
+                    line = PUSH + "shot " + picture(line[len(PUSH + "shot "):])
                 if line == END_OK or line == END_ERROR:
                     answers.put(line == END_OK)
                 elif line.startswith(PUSH):

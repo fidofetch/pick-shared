@@ -122,6 +122,32 @@ class LiveTest {
         assertTrue(clash.isCompletedExceptionally(), "an alias cannot replace a command");
     }
 
+    @Test void shotsComeBackOverTheConnection() throws Exception {
+        var c = new Commands();
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
+        c.screenshots(f -> {   // a pretend frame: written at once
+            try { java.nio.file.Files.write(java.nio.file.Path.of(f), png); } catch (java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+            return java.util.concurrent.CompletableFuture.completedFuture(java.nio.file.Path.of(f).toAbsolutePath().toString());
+        });
+        var dir = java.nio.file.Files.createTempDirectory("shots");
+        List<String> pushed = new ArrayList<>();
+        var s = new Session("a", true, pushed::add);
+        c.open(s);
+        var r = c.submit("shot " + dir.resolve("a.png") + " send", s);
+        c.tick(0);
+        String[] lines = r.join().split("\n");
+        assertEquals(dir.resolve("a.png").toString(), lines[0]);
+        assertTrue(lines[1].startsWith("png a.png "));
+        assertArrayEquals(png, java.util.Base64.getDecoder().decode(lines[1].substring("png a.png ".length())));
+        assertTrue(c.log().stream().allMatch(l -> l.text().length() < 450), "the picture stays out of the console's log");
+
+        c.submit("film every 1 for 2.5", s);
+        for (int i = 0; i < 30; i++) c.tick(0.1);
+        assertEquals(3, pushed.size(), pushed.toString());   // at 0, 1 and 2 s
+        assertTrue(pushed.get(0).startsWith("shot png film-1.png "), pushed.get(0));
+        assertTrue(pushed.get(2).startsWith("shot png film-3.png "));
+    }
+
     @Test void aSessionLetsGoWhenItEnds() {
         var c = new Commands();
         boolean[] held = {false};

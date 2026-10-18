@@ -377,6 +377,71 @@ public final class Commands {
         throw new IllegalArgumentException("\"" + s + "\" is not one of " + b);
     }
 
+    // --- screenshots ---
+
+    // The app's way to save the next frame to a file (without the console); the future ends with the file's
+    // absolute path once it is written. Throw if a shot is already waiting. This adds:
+    //   shot [file.png] [send]   send: the answer also carries the picture, one line "png <name> <base64>"
+    //   film every <s> [for <s>]  push the picture to the agent every s seconds ("# shot png <name> <base64>"); film off
+    public void screenshots(java.util.function.Function<String, CompletableFuture<String>> take) {
+        this.take = take;
+        add("shot", "shot [file.png] [send]",
+                "save the next frame (without the console); answers with the file's path; send also returns the picture", a -> {
+            boolean send = false; String file = null;
+            for (int i = 0; i < a.size(); i++) { if (a.str(i).equals("send")) send = true; else file = a.str(i); }
+            if (file == null) file = "shots/shot-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".png";
+            var parent = java.nio.file.Path.of(file).toAbsolutePath().getParent();
+            if (parent != null) java.nio.file.Files.createDirectories(parent);
+            boolean withPicture = send;
+            return take.apply(file).thenApply(path -> withPicture ? path + "\n" + pngLine(java.nio.file.Path.of(path)) : path);
+        });
+        add("film", "film [every] <s> [for <s>] | film off", "push a picture of the screen to you every s seconds (lines \"# shot png ...\"); for: stop after", a -> {
+            Session s = a.session();
+            films.removeIf(f -> f.session == s);
+            if (a.str(0).equals("off")) return "film stopped";
+            if (!s.agent) throw new IllegalArgumentException("film sends pictures to an agent's connection, not to this console");
+            int i = a.str(0).equals("every") ? 1 : 0;   // "film 2" or "film every 2"
+            double every = Math.max(0.2, a.num(i));
+            double lasts = !a.has(i + 1) ? Double.MAX_VALUE : a.str(i + 1).equals("for") ? a.num(i + 2) : a.num(i + 1);
+            films.add(new Film(s, every, now + lasts));
+            return "filming every " + fmt(every) + " s";
+        });
+    }
+
+    // One line carrying a picture: "png <file name> <base64 of the file>"
+    public static String pngLine(java.nio.file.Path file) {
+        try {
+            return "png " + file.getFileName().toString().replace(' ', '_') + " "
+                    + java.util.Base64.getEncoder().encodeToString(java.nio.file.Files.readAllBytes(file));
+        } catch (java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+    }
+
+    private java.util.function.Function<String, CompletableFuture<String>> take;
+    private final List<Film> films = new ArrayList<>();
+    private final class Film {
+        final Session session; final double every, until;
+        double nextAt; int n; boolean busy;
+        Film(Session s, double every, double until) { session = s; this.every = every; this.until = until; nextAt = now; }
+        boolean tick() {   // false when finished
+            if (session.closed || now > until) return false;
+            if (busy || now < nextAt) return true;
+            try {
+                var tmp = java.nio.file.Files.createTempFile("film-", ".png");
+                busy = true;
+                take.apply(tmp.toString()).whenComplete((path, err) -> {
+                    busy = false;
+                    try {
+                        if (err == null) session.push("shot", pngLine(java.nio.file.Path.of(path)).replaceFirst("film-\\d+", "film-" + (++n)));
+                    } finally { try { java.nio.file.Files.deleteIfExists(tmp); } catch (java.io.IOException ignored) {} }
+                });
+                nextAt = now + every;
+            } catch (java.io.IOException | RuntimeException e) {
+                busy = false; nextAt = now + 0.1;   // a shot is already waiting, say: try again shortly
+            }
+            return true;
+        }
+    }
+
     // --- topics and sessions ---
 
     // A kind of line an agent can follow (subscribe), such as a run's progress
@@ -415,6 +480,7 @@ public final class Commands {
         frame++;
         for (Runnable r; (r = onMain.poll()) != null; ) r.run();
         for (Watch w : watches) w.tick();
+        films.removeIf(f -> !f.tick());
         List<Timer> due = new ArrayList<>();   // completed after the sweep: a completion may add a timer
         timers.removeIf(t -> {
             if (now < t.at && frame < t.frame) return false;
@@ -485,6 +551,7 @@ public final class Commands {
     private void log(String text, Kind kind) { log(text, kind, true); }
     private void log(String text, Kind kind, boolean emit) {
         for (String s : text.split("\n", -1)) {
+            if (s.length() > 400) s = s.substring(0, s.startsWith("png ") ? s.indexOf(' ', 4) + 1 : 200) + "... (" + s.length() + " characters)";
             log.add(new Line(s, kind));
             if (emit) emit("log", (kind == Kind.INPUT ? "> " : kind == Kind.AGENT_INPUT ? "agent> " : "") + s);
         }
