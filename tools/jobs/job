@@ -1,0 +1,48 @@
+#!/bin/bash
+# Run a long job so the "Claude runs" window can show it, and open that window if it isn't open.
+#
+#   tools/jobs/job NAME -- command args...     e.g.  job forest-boreal -- python3 forest-sim/run.py boreal
+#   tools/jobs/job NAME --log FILE -- cmd...   the job already writes its own log: read the stage from FILE
+#
+# The job runs in the foreground (put it in the background yourself if you want), its output goes to the
+# terminal and to its log, and the exit code is kept. Each job gets a folder in $CLAUDE_JOBS
+# (default ~/.cache/claude-jobs) with: name, cmd, pid, start, log, and exit once it ends.
+# The window's STAGE column is the last line of the log, so print a line per stage or step.
+set -u
+J=${CLAUDE_JOBS:-$HOME/.cache/claude-jobs}
+here=$(cd "$(dirname "$0")" && pwd)
+
+[ $# -ge 1 ] || { sed -n '2,10p' "$0"; exit 2; }
+name=$1; shift
+log=""
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+  case $1 in
+    --log) log=$2; shift 2 ;;
+    *) echo "job: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+[ "${1:-}" = "--" ] && shift
+[ $# -ge 1 ] || { echo "job: no command after --" >&2; exit 2; }
+
+d="$J/$(date +%Y%m%d-%H%M%S)-$$-${name//[^A-Za-z0-9._-]/_}"
+mkdir -p "$d"
+echo "$name" > "$d/name"
+printf '%q ' "$@" > "$d/cmd"
+echo "$PWD" > "$d/cwd"
+date +%s > "$d/start"
+own_log=0
+if [ -z "$log" ]; then log="$d/log"; own_log=1; fi
+echo "$log" > "$d/logpath"
+
+"$here/open" >/dev/null 2>&1 || true
+
+echo "$$" > "$d/pid"
+if [ $own_log = 1 ]; then
+  "$@" > >(tee -a "$log") 2> >(tee -a "$log" >&2)
+else
+  "$@"
+fi
+code=$?
+echo "$code" > "$d/exit"
+date +%s > "$d/end"
+exit $code

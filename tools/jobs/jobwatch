@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""The "Claude runs" window: a live readout of the jobs Claude runs on this machine.
+
+    tools/jobs/jobwatch            refresh every 3 s until closed (what tools/jobs/open runs in a terminal window)
+    tools/jobs/jobwatch --once     print one readout and exit (for a quick look, or from a script)
+
+Rows:
+  - jobs started through tools/jobs/job: name, stage (the last line of its log), CPU, memory, elapsed. CPU and
+    memory add up the job's whole process tree. A finished job stays 15 minutes with its exit code.
+  - gradle: the Gradle daemons and test/worker JVMs. A gradle build does its work there, not under the job.
+  - other com.pick java processes nobody registered (a bake started by hand, the app itself).
+Then the machine: this list's CPU against all cores, memory used and available, load.
+CPU is measured over the last refresh, so 100% is one core busy. Linux only (/proc). Standard library only.
+"""
+import os
+import re
+import sys
+import time
+
+JOBS = os.environ.get("CLAUDE_JOBS", os.path.expanduser("~/.cache/claude-jobs"))
+KEEP_DONE_S = 15 * 60
+PRUNE_S = 7 * 24 * 3600
+HZ = os.sysconf("SC_CLK_TCK")
+PAGE = os.sysconf("SC_PAGE_SIZE")
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def procs():
+    """pid -> (ppid, cpu ticks, rss bytes, cmdline)"""
+    out = {}
+    for p in os.listdir("/proc"):
+        if not p.isdigit():
+            continue
+        try:
+            with open(f"/proc/{p}/stat") as f:
+                st = f.read()
+            rest = st[st.rindex(")") + 2:].split()
+            ppid, ticks, rss = int(rest[1]), int(rest[11]) + int(rest[12]), int(rest[21]) * PAGE
+            with open(f"/proc/{p}/cmdline", "rb") as f:
+                cmd = f.read().replace(b"\0", b" ").decode(errors="replace").strip()
+            out[int(p)] = (ppid, ticks, rss, cmd)
+        except (OSError, ValueError, IndexError):
+            pass
+    return out
+
+
+def tree(root, ps, kids):
+    seen, todo = [], [root]
+    while todo:
+        p = todo.pop()
+        if p in ps and p not in seen:
+            seen.append(p)
+            todo.extend(kids.get(p, ()))
+    return seen
+
+
+def read(path, default=""):
+    try:
+        with open(path, errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+
+def last_line(path):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 4096))
+            tail = f.read().decode(errors="replace")
+    except OSError:
+        return ""
+    for line in reversed(re.split(r"[\r\n]", tail)):
+        line = ANSI.sub("", line).strip()
+        if line:
+            return line
+    return ""
+
+
+def jobs(now):
+    out = []
+    if not os.path.isdir(JOBS):
+        return out
+    for d in sorted(os.listdir(JOBS)):
+        p = os.path.join(JOBS, d)
+        start = int(read(f"{p}/start", "0") or 0)
+        end = read(f"{p}/end")
+        if now - start > PRUNE_S:
+            try:
+                for f in os.listdir(p):
+                    os.remove(os.path.join(p, f))
+                os.rmdir(p)
+            except OSError:
+                pass
+            continue
+        if end and now - int(end) > KEEP_DONE_S:
+            continue
+        out.append(dict(name=read(f"{p}/name", d), pid=int(read(f"{p}/pid", "0") or 0), start=start,
+                        end=int(end) if end else None, exit=read(f"{p}/exit"),
+                        log=read(f"{p}/logpath", f"{p}/log")))
+    return out
+
+
+def gb(b):
+    return f"{b / 2**30:5.1f}G" if b >= 2**30 else f"{b / 2**20:5.0f}M"
+
+
+def hms(s):
+    s = int(s)
+    return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60:02d}:{s % 60:02d}"
+
+
+def meminfo():
+    m = {}
+    for line in read("/proc/meminfo").splitlines():
+        k, v = line.split(":", 1)
+        m[k] = int(v.split()[0]) * 1024
+    return m
+
+
+def readout(prev, dt):
+    now = time.time()
+    ps = procs()
+    kids = {}
+    for pid, (ppid, *_r) in ps.items():
+        kids.setdefault(ppid, []).append(pid)
+
+    def cpu(pids):  # percent of one core over the last interval
+        if dt <= 0:
+            return 0.0
+        return sum(max(0, ps[p][1] - prev.get(p, 0)) for p in pids) / HZ / dt * 100
+
+    rows, claimed, tot_cpu, tot_mem = [], set(), 0.0, 0
+    for j in jobs(int(now)):
+        stage = last_line(j["log"])[:40]
+        if j["end"] is None and j["pid"] in ps:
+            t = tree(j["pid"], ps, kids)
+            claimed.update(t)
+            c, m = cpu(t), sum(ps[p][2] for p in t)
+            tot_cpu, tot_mem = tot_cpu + c, tot_mem + m
+            rows.append(("run", j["name"], stage, f"{c:5.0f}", gb(m), hms(now - j["start"])))
+        else:
+            mark = "done" if j["exit"] == "0" else (f"FAILED {j['exit']}" if j["exit"] else "gone")
+            rows.append((mark, j["name"], stage, "", "", hms((j["end"] or now) - j["start"])))
+
+    gradle = [p for p, v in ps.items() if p not in claimed and re.search(
+        r"GradleDaemon|GradleWorkerMain|Gradle Test Executor|GradleMain", v[3])]
+    if gradle:
+        claimed.update(gradle)
+        c, m = cpu(gradle), sum(ps[p][2] for p in gradle)
+        tot_cpu, tot_mem = tot_cpu + c, tot_mem + m
+        rows.append(("", f"gradle ({len(gradle)} JVM)", "daemons and test workers", f"{c:5.0f}", gb(m), ""))
+
+    for p, v in ps.items():
+        if p in claimed or not re.search(r"\bjava\b.*com\.pick\.", v[3]) or "idea" in v[3].lower():
+            continue
+        name = re.findall(r"com\.pick\.[A-Za-z0-9_.]*", v[3])[-1].split(".")[-1]
+        c = cpu([p])
+        tot_cpu, tot_mem = tot_cpu + c, tot_mem + v[2]
+        rows.append(("other", f"{name} (pid {p})", "", f"{c:5.0f}", gb(v[2]), ""))
+
+    lines = [f"\x1b[1mClaude runs\x1b[0m   {time.strftime('%H:%M:%S')}", "",
+             f"{'':10} {'JOB':28} {'STAGE':40} {'CPU%':>5} {'MEM':>6} {'TIME':>8}"]
+    for st, name, stage, c, m, t in rows:
+        lines.append(f"{st:10} {name[:28]:28} {stage:40} {c:>5} {m:>6} {t:>8}")
+    if not rows:
+        lines.append("           (nothing running)")
+    mi = meminfo()
+    load = read("/proc/loadavg").split()[:3]
+    lines += ["", f"these: CPU {tot_cpu:.0f}% of {os.cpu_count() * 100}%   memory {gb(tot_mem).strip()}",
+              f"machine: {gb(mi['MemTotal'] - mi['MemAvailable']).strip()} used of {gb(mi['MemTotal']).strip()}, "
+              f"{gb(mi['MemAvailable']).strip()} available   load {' '.join(load)}"]
+    return "\n".join(lines), {p: v[1] for p, v in ps.items()}
+
+
+def main():
+    once = "--once" in sys.argv
+    if once:  # sample half a second so CPU means something
+        _, prev = readout({}, 0)
+        time.sleep(0.5)
+        print(readout(prev, 0.5)[0])
+        return
+    prev, t0 = {}, time.time()
+    while True:
+        t = time.time()
+        text, prev = readout(prev, t - t0)
+        t0 = t
+        sys.stdout.write("\x1b[H\x1b[2J" + text + "\n")
+        sys.stdout.flush()
+        time.sleep(3)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
