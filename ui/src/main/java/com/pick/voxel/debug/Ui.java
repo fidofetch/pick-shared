@@ -82,9 +82,14 @@ public final class Ui {
     // pre-formatted text directly: use these.
 
     // Tooltip for the widget drawn just before this call, after a rest (Theme sets the delay). The text is shown
-    // as it is: setTooltip formats like printf, so % is escaped
+    // as it is (no printf formatting) and wraps at about 70 characters, so a long tip stays on screen at 200%
     public static void tip(String text) {
-        if (ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.ForTooltip)) ImGui.setTooltip(text.replace("%", "%%"));
+        if (!ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.ForTooltip)) return;
+        ImGui.beginTooltip();
+        ImGui.pushTextWrapPos(UiFonts.px(460));
+        ImGui.textUnformatted(text);
+        ImGui.popTextWrapPos();
+        ImGui.endTooltip();
     }
 
     public static void text(String format, Object... args) {

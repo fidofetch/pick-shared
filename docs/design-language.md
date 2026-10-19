@@ -10,8 +10,9 @@ size and check things in ImGui: the `game-ui-design` skill and world-builder `do
    behind them: same colours and type, allowed to be dense and plain.
 2. **The world is the interface.** In play nothing is on screen by default. The body, the tools and the world
    say what is going on. If something must show, it shows near what it is about, then goes.
-3. **Dark and quiet; amber for the next step.** The frame is a dark walnut cabinet. One amber thing per
-   screen: the step you most likely want next. Colour and light are for the planets.
+3. **Dark and quiet; amber for the next step.** The frame is a dark walnut cabinet. One amber fill per
+   screen: the main button, the step you most likely want next. Amber text is only for small section
+   headings, the focus ring and a selection, never a second button. Colour and light are for the planets.
 4. **Things you make are the light.** Planets glow in their cases; maps are parchment. Nothing else is bright.
 5. **Some things are meant to be found.** No menu, tip, tooltip, loading line or achievement names or hints
    at a hidden system. If you aren't sure whether something is one, ask before putting it on screen.
@@ -80,5 +81,5 @@ an entry in the corner menu.
 ## Before it ships
 
 Check it at 1280×720, 1600×960 and 200% text; with no planets, one, and twenty; with a long name; while an
-app is starting, running and failed. One amber thing on screen? Nothing names a hidden system? Pictures
+app is starting, running and failed. One amber fill on screen? Nothing names a hidden system? Pictures
 through the console (`shot … send`), before and after.
