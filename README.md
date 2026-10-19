@@ -8,6 +8,10 @@ Code the engine ([voxel](https://github.com/fidofetch/voxel)) and World Seed
 | `ui` | The look and the controls: colours and widget styles (`Theme`), widget helpers (`Ui`), the font and Text size (`UiFonts`, IBM Plex Sans), easing that honours Reduce motion (`Motion`), the Feedback panel (F9), a small JSON writer (for feedback notes), and the Settings page frame with its file (`SettingsPage`, `SettingsSection`, `SettingsFile`) | `com.pick.voxel.debug`, `com.pick.feedback`, `com.pick.util`, `com.pick.settings` |
 | `console` | The command console (F1 or `) and the agent hook: commands, variables, watches and topics, the panel, the loopback server, `tools/console.py` | `com.pick.console` |
 
+`launcher` is the start page: the shelf of planets to play, with the Builder and the Studio in its corner menu
+([docs/launcher.md](docs/launcher.md); `tools/launcher`). How every screen should look and read:
+[docs/design-language.md](docs/design-language.md).
+
 `tools/jobs` (not a module) is the **Claude runs** window: run long jobs on Pick's machine through
 `tools/jobs/job` and a terminal shows them live ([docs/jobs.md](docs/jobs.md)).
 

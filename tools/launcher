@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Start the Worldseed launcher (docs/launcher.md). --desktop adds it to the app menu instead.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ -z "${JAVA_HOME:-}" ]] && ! command -v java >/dev/null; then
+    jdk="$(ls -d "$HOME"/.jdks/*/ 2>/dev/null | sort -V | tail -1 || true)"
+    [[ -n "$jdk" ]] || { echo "no JDK found: set JAVA_HOME (a JDK 21 or newer)" >&2; exit 1; }
+    export JAVA_HOME="${jdk%/}"
+fi
+
+if [[ "${1:-}" == "--desktop" ]]; then
+    dir="$HOME/.local/share/applications"
+    mkdir -p "$dir"
+    cat > "$dir/worldseed.desktop" <<DESK
+[Desktop Entry]
+Type=Application
+Name=Worldseed
+Comment=Play your planets
+Exec=$here/tools/launcher
+Terminal=false
+Categories=Game;Development;
+DESK
+    echo "added: $dir/worldseed.desktop"
+    exit 0
+fi
+
+exec "$here/gradlew" -p "$here" --quiet :launcher:run "$@"
