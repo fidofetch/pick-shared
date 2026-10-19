@@ -12,6 +12,8 @@ Rows:
 Then the machine: this list's CPU against all cores, memory used and available, load.
 CPU is measured over the last refresh, so 100% is one core busy. Linux only (/proc). Standard library only.
 """
+import importlib.machinery
+import importlib.util
 import os
 import re
 import sys
@@ -23,6 +25,10 @@ PRUNE_S = 7 * 24 * 3600
 HZ = os.sysconf("SC_CLK_TCK")
 PAGE = os.sysconf("SC_PAGE_SIZE")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_loader = importlib.machinery.SourceFileLoader(  # the queue rules live in jobqueue (no .py, so load by path)
+    "jobqueue", os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobqueue"))
+QUEUE = importlib.util.module_from_spec(importlib.util.spec_from_loader("jobqueue", _loader))
+_loader.exec_module(QUEUE)
 
 
 def procs():
@@ -82,6 +88,8 @@ def jobs(now):
     if not os.path.isdir(JOBS):
         return out
     for d in sorted(os.listdir(JOBS)):
+        if d.startswith("."):
+            continue
         p = os.path.join(JOBS, d)
         start = int(read(f"{p}/start", "0") or 0)
         end = read(f"{p}/end")
@@ -97,7 +105,8 @@ def jobs(now):
             continue
         out.append(dict(name=read(f"{p}/name", d), pid=int(read(f"{p}/pid", "0") or 0), start=start,
                         end=int(end) if end else None, exit=read(f"{p}/exit"),
-                        log=read(f"{p}/logpath", f"{p}/log")))
+                        log=read(f"{p}/logpath", f"{p}/log"), cls=read(f"{p}/class", "queue"),
+                        queued=bool(read(f"{p}/ticket")), began=int(read(f"{p}/began", "0") or 0)))
     return out
 
 
@@ -131,17 +140,26 @@ def readout(prev, dt):
         return sum(max(0, ps[p][1] - prev.get(p, 0)) for p in pids) / HZ / dt * 100
 
     rows, claimed, tot_cpu, tot_mem = [], set(), 0.0, 0
+    queue = QUEUE.live()
+    waiting = [q for q in queue if not q["began"]]
     for j in jobs(int(now)):
         stage = last_line(j["log"])[:40]
-        if j["end"] is None and j["pid"] in ps:
+        name = j["name"] if j["cls"] == "queue" else f"{j['name']} ({j['cls']})"
+        if j["end"] is None and j["pid"] in ps and j["queued"] and not j["began"]:
+            q = next((q for q in waiting if q["pid"] == j["pid"]), None)
+            b = QUEUE.blockers(q, queue) if q else []
+            n = waiting.index(q) + 1 if q else 0
+            rows.append((f"wait {n}", name, ("waits for " + ", ".join(x["name"] for x in b))[:40] if b else "starting",
+                         "", "", hms(now - j["start"])))
+        elif j["end"] is None and j["pid"] in ps:
             t = tree(j["pid"], ps, kids)
             claimed.update(t)
             c, m = cpu(t), sum(ps[p][2] for p in t)
             tot_cpu, tot_mem = tot_cpu + c, tot_mem + m
-            rows.append(("run", j["name"], stage, f"{c:5.0f}", gb(m), hms(now - j["start"])))
+            rows.append(("run", name, stage, f"{c:5.0f}", gb(m), hms(now - (j["began"] or j["start"]))))
         else:
             mark = "done" if j["exit"] == "0" else (f"FAILED {j['exit']}" if j["exit"] else "gone")
-            rows.append((mark, j["name"], stage, "", "", hms((j["end"] or now) - j["start"])))
+            rows.append((mark, name, stage, "", "", hms((j["end"] or now) - (j["began"] or j["start"]))))
 
     gradle = [p for p, v in ps.items() if p not in claimed and re.search(
         r"GradleDaemon|GradleWorkerMain|Gradle Test Executor|GradleMain", v[3])]

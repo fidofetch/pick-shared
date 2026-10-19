@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""The queue behind tools/jobs/job, so overlapping runs don't skew each other's results.
+
+    tools/jobs/jobqueue wait DIR     block until the job in DIR may start (job calls this), then mark it begun
+    tools/jobs/jobqueue overlap DIR  print what ran at the same time as the finished job in DIR (job calls this)
+    tools/jobs/jobqueue list         print the queue: what runs, what waits and on what
+
+Three kinds of job (the job's `class` file):
+  queue    (default) one at a time, first come first served. Builds with tests, bakes, sims, the game.
+  measure  one at a time like queue, and light jobs wait too: benchmarks, frame timings, anything GPU.
+  light    starts at once alongside a queue job; waits only while a measure job runs or is next in line.
+A job whose process is gone (killed, session ended) drops out of the queue. Standard library only.
+"""
+import fcntl
+import os
+import re
+import sys
+import time
+
+JOBS = os.environ.get("CLAUDE_JOBS", os.path.expanduser("~/.cache/claude-jobs"))
+POLL_S = 2
+
+
+def read(path, default=""):
+    try:
+        with open(path, errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+
+def write(path, text):
+    with open(path, "w") as f:
+        f.write(f"{text}\n")
+
+
+def alive(pid):
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def record(d):
+    p = os.path.join(JOBS, d)
+    return dict(dir=p, name=read(f"{p}/name", d), cls=read(f"{p}/class", "queue"),
+                ticket=int(read(f"{p}/ticket", "0") or 0), pid=int(read(f"{p}/pid", "0") or 0),
+                began=int(read(f"{p}/began", "0") or 0), end=int(read(f"{p}/end", "0") or 0))
+
+
+def live():
+    """Jobs still waiting or running, oldest ticket first."""
+    if not os.path.isdir(JOBS):
+        return []
+    out = []
+    for d in os.listdir(JOBS):
+        if d.startswith("."):
+            continue
+        r = record(d)
+        if not r["end"] and r["ticket"] and alive(r["pid"]):
+            out.append(r)
+    return sorted(out, key=lambda r: r["ticket"])
+
+
+def blockers(me, jobs):
+    """Why `me` may not start yet: the jobs it waits on (empty means go)."""
+    others = [j for j in jobs if j["dir"] != me["dir"]]
+    running = [j for j in others if j["began"]]
+    heavy_running = [j for j in running if j["cls"] != "light"]
+    if me["cls"] == "light":
+        if any(j["cls"] == "measure" for j in running):
+            return [j for j in running if j["cls"] == "measure"]
+        waiting = [j for j in others if not j["began"] and j["cls"] != "light"]
+        if not heavy_running and waiting and waiting[0]["cls"] == "measure":
+            return [waiting[0]]  # a measure job is next: don't start new light work under it
+        return []
+    ahead = [j for j in others if not j["began"] and j["cls"] != "light" and j["ticket"] < me["ticket"]]
+    out = heavy_running + ahead
+    if me["cls"] == "measure":
+        out += [j for j in running if j["cls"] == "light"]
+    return out
+
+
+class Lock:
+    def __enter__(self):
+        os.makedirs(JOBS, exist_ok=True)
+        self.f = open(os.path.join(JOBS, ".lock"), "w")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        fcntl.flock(self.f, fcntl.LOCK_UN)
+        self.f.close()
+
+
+def untracked():
+    """com.pick java apps and Gradle builds nobody started through job: they skew a run too."""
+    tracked = set()
+    for j in live():
+        tracked.add(j["pid"])
+    kids, cmds = {}, {}
+    for p in os.listdir("/proc"):
+        if not p.isdigit():
+            continue
+        try:
+            st = read(f"/proc/{p}/stat")
+            ppid = int(st[st.rindex(")") + 2:].split()[1])
+            with open(f"/proc/{p}/cmdline", "rb") as f:
+                cmds[int(p)] = f.read().replace(b"\0", b" ").decode(errors="replace")
+            kids.setdefault(ppid, []).append(int(p))
+        except (OSError, ValueError, IndexError):
+            pass
+    todo, under = list(tracked), set()
+    while todo:  # everything under a tracked job is accounted for
+        p = todo.pop()
+        if p not in under:
+            under.add(p)
+            todo.extend(kids.get(p, ()))
+    out = []
+    for p, c in cmds.items():
+        if p in under or "idea" in c.lower():
+            continue
+        m = re.findall(r"com\.pick\.[A-Za-z0-9_.]*", c) if re.search(r"\bjava\b", c) else []
+        if m:
+            out.append(f"{m[-1].split('.')[-1]} (pid {p})")
+    return out
+
+
+def wait(d):
+    d = os.path.abspath(d)
+    with Lock():
+        n = int(read(os.path.join(JOBS, ".ticket"), "0") or 0) + 1
+        write(os.path.join(JOBS, ".ticket"), n)
+        write(f"{d}/ticket", n)
+    said = None
+    while True:
+        with Lock():
+            me = record(os.path.basename(d))
+            b = blockers(me, live())
+            if not b:
+                now = int(time.time())
+                write(f"{d}/began", now)
+                break
+        names = ", ".join(j["name"] for j in b)
+        if names != said:
+            print(f"job: {me['name']} waits for {names}", file=sys.stderr, flush=True)
+            said = names
+        time.sleep(POLL_S)
+    if said is not None:
+        print(f"job: {me['name']} starts", file=sys.stderr, flush=True)
+    if me["cls"] == "measure":
+        others = untracked()
+        if others:
+            write(f"{d}/untracked", ", ".join(others))
+            print(f"job: warning, not started through job and still running: {', '.join(others)}"
+                  " (results may be skewed)", file=sys.stderr, flush=True)
+
+
+def overlap(d):
+    """Other jobs whose run overlapped this one's, for the job's last line."""
+    me = record(os.path.basename(os.path.abspath(d)))
+    if not me["began"]:
+        return
+    end = me["end"] or int(time.time())
+    seen = []
+    for x in os.listdir(JOBS) if os.path.isdir(JOBS) else []:
+        if x.startswith(".") or os.path.join(JOBS, x) == me["dir"]:
+            continue
+        j = record(x)
+        if not j["end"] and not alive(j["pid"]):
+            continue  # killed without an end time: can't tell when it stopped
+        if j["began"] and j["began"] < end and (not j["end"] or j["end"] > me["began"]):
+            seen.append(j["name"])
+    extra = read(f"{me['dir']}/untracked")
+    if extra:
+        seen.append(extra)
+    print(f"job: {me['name']} " + (f"overlapped with: {', '.join(seen)}" if seen else "ran alone"))
+
+
+def listing():
+    jobs = live()
+    if not jobs:
+        print("queue: empty")
+        return
+    for j in jobs:
+        b = blockers(j, jobs)
+        state = "run " if j["began"] else "wait"
+        why = "" if j["began"] else ("  waits for " + ", ".join(x["name"] for x in b) if b else "  starting")
+        print(f"{state} {j['cls']:8} {j['name']}{why}")
+
+
+def main(argv):
+    if len(argv) >= 3 and argv[1] == "wait":
+        wait(argv[2])
+    elif len(argv) >= 3 and argv[1] == "overlap":
+        overlap(argv[2])
+    elif len(argv) >= 2 and argv[1] == "list":
+        listing()
+    else:
+        print(__doc__.strip())
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except KeyboardInterrupt:
+        sys.exit(130)
