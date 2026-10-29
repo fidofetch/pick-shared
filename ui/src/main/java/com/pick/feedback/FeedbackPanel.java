@@ -153,7 +153,7 @@ public final class FeedbackPanel {
     }
 
     private void discardShot() {
-        try { if (shot != null) Files.deleteIfExists(shot); } catch (java.io.IOException ignored) { }
+        try { if (shot != null) { Files.deleteIfExists(shot); Files.deleteIfExists(FeedbackNotes.cleanOf(shot)); } } catch (java.io.IOException ignored) { }
     }
 
     private void close() {
