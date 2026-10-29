@@ -49,4 +49,17 @@ class FeedbackNotesTest {
         assertFalse(Files.readString(md).contains("screenshot"));
         try (Stream<Path> s = Files.list(dir)) { assertEquals(2, s.count()); }   // .md and .json, nothing else
     }
+
+    @Test void aCleanCopyBesideThePictureIsLinked(@TempDir Path dir) throws IOException {
+        FeedbackNotes notes = new FeedbackNotes(dir, "engine");
+        LocalDateTime when = LocalDateTime.of(2026, 10, 29, 17, 0, 0);
+        Path shot = notes.shotPath(when);
+        Files.write(shot, new byte[]{1});
+        assertEquals("20261029-170000-clean.png", FeedbackNotes.cleanOf(shot).getFileName().toString());
+        Files.write(FeedbackNotes.cleanOf(shot), new byte[]{2});
+        Path md = notes.write(when, "Polish", "a nice view", shot, Map.of(), 0);
+        Object root = Json.parse(Files.readString(md.resolveSibling(md.getFileName().toString().replace(".md", ".json"))));
+        assertEquals("20261029-170000-clean.png", Json.str(root, "cleanScreenshot"));
+        assertTrue(Files.readString(md).contains("(20261029-170000-clean.png)"));
+    }
 }
