@@ -52,6 +52,8 @@ public final class SettingsFile {
 
     public void save() {
         try {
+            Path dir = file.toAbsolutePath().getParent();
+            if (dir != null) Files.createDirectories(dir);   // a first run: ~/.config/<app> isn't there yet (nothing was kept, sitting 2026-11-12)
             Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
             try (Writer w = Files.newBufferedWriter(tmp)) { p.store(w, header); }
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
