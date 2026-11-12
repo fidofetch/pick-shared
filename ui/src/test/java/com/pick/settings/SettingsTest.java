@@ -45,4 +45,14 @@ class SettingsTest {
         assertEquals(0.2f, fog.density);
         assertTrue(fog.on);
     }
+
+    // A first run: the settings folder (~/.config/pick-launcher) isn't there yet; save makes it (sitting 2026-11-12)
+    @Test void saveMakesItsFolder(@TempDir Path dir) {
+        Path f = dir.resolve("config/pick-launcher/launcher.properties");
+        var s = SettingsFile.load(f, "test");
+        s.scope("prepare").put("demo_island_r10", 8);
+        s.save();
+        assertTrue(Files.isRegularFile(f));
+        assertEquals(8, SettingsFile.load(f, "test").scope("prepare").i("demo_island_r10", -1));
+    }
 }
