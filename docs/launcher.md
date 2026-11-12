@@ -6,6 +6,20 @@ at both ends. Choose one (click, arrows, mouse wheel) and **Play** opens it in t
 (`voxel/gradlew run -Dvoxel.world=<its package>`). The empty case at the end is **New planet** (the Builder with
 a new planet: a long project, so it is never the first thing offered).
 
+**Continue and New game.** When the chosen planet has a save (the engine's `saves/world-<name>/continue.save`
+beside the voxel repo), the main button is **Continue** (the engine with `-Dvoxel.continue`) and a quieter **New
+game** sits under it (the engine starts fresh; the old save moves to its `older/` folder on the first save), with
+when it was saved. Without a save the button is **Play**.
+
+**Prepare this world (World disk size, Pick 2026-11-11).** The first Play of a planet asks how much of it to bake
+ahead and keep on disk, so play is smoother and later starts are quick: 2 GB, 8 GB (suggested), 16 GB, or Bake as
+I play. A one-time cost, like compiling shaders: play starts after the usual loading screen and the rest carries
+on in the background. The choice is kept per planet (`prepare.<name>` in the settings file; Menu, World disk size
+changes it) and every start passes it as `-Dvoxel.preloadGB=<GB>` (voxel `world/brick/Preloader`, which fills 75%
+of it and leaves the rest for ground walked to); the first start after choosing also passes `-Dvoxel.worldDiskGB`
+(the engine's Settings > View "Disk space for the world"). Options too big for the free space are greyed out.
+Plan and measurements: the project's `planning/world-preload/`.
+
 The workshop is in the corner **Menu**: Build planets (the Builder), Make maps (the Builder, straight into the
 Studio with the newest baked planet: `-Dbuilder.run="open baked; studio on"`), New planet, Options.
 
@@ -56,7 +70,9 @@ python3 tools/console.py --port 47102 "shot home.png send"
 
 | Command | Does |
 |---|---|
-| `planets`, `pick <n\|name\|new>`, `play` | the shelf: list, choose a case, Play |
+| `planets`, `pick <n\|name\|new>`, `play` | the shelf: list, choose a case, Play (Continue when it has a save) |
+| `newgame` | the chosen planet from the start |
+| `prepare [2\|8\|16\|play]` | the chosen planet's World disk size (no value: open the choice) |
 | `open <engine\|builder\|studio>`, `stop <...>` | open (engine: the chosen planet) or close an app |
 | `menu`, `options` | open the corner menu, Options |
 | `apps` | each app's state and newest log line |
@@ -64,5 +80,5 @@ python3 tools/console.py --port 47102 "shot home.png send"
 | `shot [file] [send]`, `film ...` | pictures (relative files go to `~/.cache/pick-launcher/shots`) |
 | `quit` | close the launcher (the apps stay open) |
 
-Variables: `projects`, `moreShelves`, `agentConsole`, `planet` (the chosen case), `app.engine`, `app.builder`,
+Variables: `projects`, `moreShelves`, `agentConsole`, `planet` (the chosen case), `prepared` (its disk size), `app.engine`, `app.builder`,
 `app.studio` (read only).

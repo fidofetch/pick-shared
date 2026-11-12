@@ -19,6 +19,14 @@ final class Planets {
 
     record Planet(String name, Path pkg, long madeAt, double radiusM, int n) {
         String key() { return pkg.toAbsolutePath().normalize().toString(); }
+        // The engine's name for it (voxel Levels.fromChoice): the package folder's, or the Builder planet's own folder
+        // for one at <planet>/bake/world or <planet>/preview/world. Its save is saves/world-<this>/continue.save
+        String levelName() {
+            Path p = pkg.toAbsolutePath().normalize();
+            boolean builder = p.getNameCount() >= 3 && p.getFileName().toString().equals("world")
+                    && (p.getParent().getFileName().toString().equals("bake") || p.getParent().getFileName().toString().equals("preview"));
+            return (builder ? p.getParent().getParent() : p).getFileName().toString();
+        }
     }
 
     static List<Planet> find(List<Path> folders) {
