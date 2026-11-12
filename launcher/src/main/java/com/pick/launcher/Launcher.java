@@ -185,7 +185,7 @@ public final class Launcher {
             ImGui.setCursorScreenPos(x, y);
             ImGui.invisibleButton("##case" + i, w, w);
             if (ImGui.isItemClicked()) clicked = i;
-            if (chosen && ImGui.isItemHovered() && ImGui.isMouseDoubleClicked(0)) playChosen();
+            if (chosen && ImGui.isItemHovered() && ImGui.isMouseDoubleClicked(0)) playChosen(i < planets.size() && savedAt(planets.get(i)) >= 0);
             if (!chosen && ImGui.isItemHovered()) ImGui.setTooltip(i < planets.size() ? planets.get(i).name() : "New planet");
         }
         if (clicked >= 0) sel = clicked;
@@ -212,16 +212,29 @@ public final class Launcher {
         App engine = app(App.Id.ENGINE), builder = app(App.Id.BUILDER);
         App doing = isNew ? builder : engine;
         boolean running = doing.isRunning();
+        long savedAt = isNew ? -1 : savedAt(planets.get(sel));   // a save to continue (-1: none)
         float bw = UiFonts.px(240), bh = UiFonts.px(44);
         ImGui.setCursorScreenPos(cx - bw / 2, ty);
         if (!running) Theme.pushPrimary();
         ImGui.setWindowFontScale(1.15f);
-        String label = running ? (isNew ? "Close the Builder" : "Stop playing") : isNew ? "Make a new planet" : "Play";
-        if (ImGui.button(label + "##main", bw, bh)) { if (running) doing.stop(); else if (isNew) newPlanet(); else playChosen(); }
+        String label = running ? (isNew ? "Close the Builder" : "Stop playing") : isNew ? "Make a new planet" : savedAt >= 0 ? "Continue" : "Play";
+        if (ImGui.button(label + "##main", bw, bh)) { if (running) doing.stop(); else if (isNew) newPlanet(); else playChosen(savedAt >= 0); }
         ImGui.setWindowFontScale(1f);
         if (!running) Theme.popPrimary();
-        if (!running) Ui.tip(isNew ? "opens the Builder with a new planet" : "walk this planet in first person (Enter, or double-click its case)");
+        if (!running) Ui.tip(isNew ? "opens the Builder with a new planet" : savedAt >= 0 ? "back where you left off, " + ago(savedAt) + " (Enter, or double-click its case)"
+                : "walk this planet in first person (Enter, or double-click its case)");
         ty += bh + UiFonts.px(8);
+        if (!running && savedAt >= 0) {   // starting over is there, but quieter than Continue
+            float nw = UiFonts.px(160);
+            ImGui.setCursorScreenPos(cx - nw / 2, ty);
+            Theme.pushOutlined();
+            if (ImGui.button("New game##new", nw, 0)) playChosen(false);
+            Theme.popOutlined();
+            Ui.tip("start this planet fresh from the beginning (the old save is kept, in its older/ folder)");
+            ty += ImGui.getFrameHeight() + UiFonts.px(8);
+            centred(ago(savedAt), ty, Theme.MUTED_RGB);
+            ty += ImGui.getTextLineHeight() + UiFonts.px(6);
+        }
         String st = status(doing);
         if (!st.isEmpty()) {
             float tw = Math.min(ImGui.calcTextSize(st).x, winW - 2 * pad);
@@ -237,7 +250,7 @@ public final class Launcher {
         if (!ImGui.getIO().getWantTextInput() && !ImGui.isPopupOpen("", imgui.flag.ImGuiPopupFlags.AnyPopupId)) {
             if (ImGui.isKeyPressed(imgui.flag.ImGuiKey.LeftArrow)) sel = Math.max(0, sel - 1);
             if (ImGui.isKeyPressed(imgui.flag.ImGuiKey.RightArrow)) sel = Math.min(count - 1, sel + 1);
-            if (ImGui.isKeyPressed(imgui.flag.ImGuiKey.Enter) && !engine.isRunning()) { if (isNew) newPlanet(); else playChosen(); }
+            if (ImGui.isKeyPressed(imgui.flag.ImGuiKey.Enter) && !engine.isRunning()) { if (isNew) newPlanet(); else playChosen(savedAt >= 0); }
             float wheel = ImGui.getIO().getMouseWheel() + ImGui.getIO().getMouseWheelH();
             if (wheel != 0 && ImGui.isWindowHovered()) sel = Math.clamp(sel + (wheel < 0 ? 1 : -1), 0, count - 1);
         }
@@ -254,6 +267,8 @@ public final class Launcher {
         menu();
         if (optionsAsked) { ImGui.openPopup("Options"); optionsAsked = false; }
         options();
+        if (prepAsked) { ImGui.openPopup("Prepare this world"); prepAsked = false; }
+        prepare();
 
         if (!message.isEmpty() && glfwGetTime() < messageUntil) {
             float tw = Math.min(ImGui.calcTextSize(message).x, winW - 2 * pad);
@@ -381,6 +396,8 @@ public final class Launcher {
         tool(app(App.Id.STUDIO), "Make maps", "maps of your newest baked planet, in the Studio");
         if (ImGui.menuItem("New planet")) newPlanet();
         ImGui.separator();
+        if (sel < planets.size() && ImGui.menuItem("World disk size...")) askPrepare(false, false);
+        Ui.tip("how much of this planet is baked ahead and kept on disk");
         if (ImGui.menuItem("Options...")) optionsAsked = true;
         if (ImGui.menuItem("Look for planets again")) rescan();
         ImGui.endPopup();
@@ -444,14 +461,121 @@ public final class Launcher {
         }
     }
 
-    private void playChosen() {
+    // Play (or Continue: its save first). A planet played for the first time asks how much to prepare first
+    private void playChosen(boolean cont) {
         if (sel >= planets.size()) { newPlanet(); return; }
         var p = planets.get(sel);
         App engine = app(App.Id.ENGINE);
         if (engine.isRunning()) { say("a planet is already open: stop it first"); return; }
+        if (prepared(p) == null) { askPrepare(true, cont); return; }
         lastPlanet = p.key();
         save();
-        open(engine, List.of("-Dvoxel.world=" + p.pkg().toAbsolutePath()));
+        var extra = new java.util.ArrayList<>(List.of("-Dvoxel.world=" + p.pkg().toAbsolutePath()));
+        if (cont) extra.add("-Dvoxel.continue");
+        int gb = prepared(p);
+        extra.add("-Dvoxel.preloadGB=" + Math.max(0, gb));   // this planet's choice, every start (the engine bakes what is missing)
+        if (gb > 0 && justPrepared) extra.add("-Dvoxel.worldDiskGB=" + gb);   // Settings > View's disk space, once (it stays the player's)
+        justPrepared = false;
+        open(engine, extra);
+    }
+
+    // ---- preparing a planet (Pick 2026-11-11): bake its ground ahead once, kept on disk, for smoother play ----
+    // The disk space is also the cap on the engine's store (Settings > View "Disk space for the world"); the engine
+    // fills three quarters of it ahead (voxel Preloader) and leaves the rest for ground you walk to. Times and areas are
+    // estimates from Pick's desktop (2026-11-11: 100-170 bricks a second on all cores, 6 KB per m2 at 12.5 cm), to be
+    // replaced by a measured run; it carries on in the background in play.
+    static final int[] PREP_GB = { 2, 8, 16, 0 };
+    static final String[] PREP_NAME = { "2 GB", "8 GB", "16 GB", "Bake as I play" };
+    static final String[] PREP_TIME = { "about 10-30 min", "about 1-2 h", "about 2-4 h", "no wait" };
+    static final String[] PREP_WHAT = {
+            "the far view over the whole island, and finer ground round where you start",
+            "and the finest prepared ground over the densest forest near you, about 0.5 sq km (0.2 sq mi)",
+            "the finest prepared ground over about 1 sq km (0.4 sq mi)",
+            "the ground bakes where you go, as before (up to 8 GB on disk)" };
+    private boolean prepAsked, prepThenPlay, prepContinue, justPrepared;
+    private int prepChoice = 1;
+
+    private void askPrepare(boolean thenPlay, boolean cont) {
+        prepThenPlay = thenPlay; prepContinue = cont;
+        Integer had = sel < planets.size() ? prepared(planets.get(sel)) : null;
+        if (had != null) for (int i = 0; i < PREP_GB.length; i++) if (PREP_GB[i] == Math.max(0, had)) prepChoice = i;
+        prepAsked = true;
+    }
+
+    // this planet's choice: GB, -1 bake as I play, null not asked yet
+    private Integer prepared(Planets.Planet p) {
+        var s = settings.scope("prepare");
+        return s.has(p.levelName()) ? s.i(p.levelName(), -1) : null;
+    }
+
+    private void setPrepared(Planets.Planet p, int gb) {
+        settings.scope("prepare").put(p.levelName(), gb <= 0 ? -1 : gb);
+        settings.save();
+    }
+
+    private static long freeBytes() {
+        try {
+            Path at = HOME.resolve(".cache");
+            return Files.getFileStore(Files.isDirectory(at) ? at : HOME).getUsableSpace();
+        } catch (Exception e) { return Long.MAX_VALUE; }
+    }
+
+    private void prepare() {
+        float vw = ImGui.getMainViewport().getSizeX(), vh = ImGui.getMainViewport().getSizeY();
+        ImGui.setNextWindowSize(Math.min(UiFonts.px(620), vw - 32), 0, ImGuiCond.Always);
+        ImGui.setNextWindowPos(vw / 2, vh / 2, ImGuiCond.Always, 0.5f, 0.5f);
+        if (!ImGui.beginPopupModal("Prepare this world", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize)) return;
+        if (sel >= planets.size()) { ImGui.closeCurrentPopup(); ImGui.endPopup(); return; }
+        var p = planets.get(sel);
+        ImGui.pushTextWrapPos(0f);
+        ImGui.text(("World disk size for " + p.name()).replace("%", "%%"));
+        ImGui.textColored(Theme.MUTED_RGB[0], Theme.MUTED_RGB[1], Theme.MUTED_RGB[2], 1f,
+                "The game bakes this planet's ground ahead of time and keeps it on disk, so play is smoother and later starts are quick. "
+                + "It is a one-time cost: you can start playing after a minute or two, and it carries on in the background while you play.");
+        ImGui.popTextWrapPos();
+        ImGui.spacing();
+        long free = freeBytes();
+        for (int i = 0; i < PREP_GB.length; i++) {
+            boolean fits = PREP_GB[i] == 0 || PREP_GB[i] * 1e9 < free * 0.9;
+            if (!fits) ImGui.beginDisabled();
+            if (ImGui.radioButton(PREP_NAME[i] + (i == 1 ? "  (suggested)" : "") + "##prep" + i, prepChoice == i)) prepChoice = i;
+            if (!fits) ImGui.endDisabled();
+            ImGui.sameLine(UiFonts.px(190));
+            ImGui.textDisabled(PREP_TIME[i]);
+            Ui.tip("an estimate from one desktop (all cores); it runs in the background, so play starts much sooner");
+            ImGui.indent(UiFonts.px(28));
+            ImGui.pushTextWrapPos(0f);
+            ImGui.textColored(Theme.MUTED_RGB[0], Theme.MUTED_RGB[1], Theme.MUTED_RGB[2], 1f, fits ? PREP_WHAT[i] : "not enough free space on this drive");
+            ImGui.popTextWrapPos();
+            ImGui.unindent(UiFonts.px(28));
+        }
+        ImGui.spacing();
+        if (free < Long.MAX_VALUE) ImGui.textDisabled(String.format(java.util.Locale.ROOT, "%.0f GB free on this drive. You can change this later (Menu, World disk size).", free / 1e9));
+        ImGui.spacing();
+        Theme.pushPrimary();
+        boolean go = ImGui.button((prepThenPlay ? "Start" : "Keep this") + "##prepGo", UiFonts.px(150), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Enter);
+        Theme.popPrimary();
+        ImGui.sameLine();
+        boolean back = ImGui.button("Back##prepBack", UiFonts.px(110), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Escape);
+        if (go) {
+            setPrepared(p, PREP_GB[prepChoice]);
+            justPrepared = true;
+            ImGui.closeCurrentPopup();
+            if (prepThenPlay) playChosen(prepContinue);
+            else justPrepared = PREP_GB[prepChoice] > 0;   // the next Play sets the engine's disk space to it
+        } else if (back) ImGui.closeCurrentPopup();
+        ImGui.endPopup();
+    }
+
+    // When this planet was last saved (the engine's saves/world-<name>/continue.save beside the voxel repo), or -1
+    private long savedAt(Planets.Planet p) {
+        Path f = Path.of(projects.get().trim(), "voxel", "saves", "world-" + p.levelName().replaceAll("[^A-Za-z0-9_.-]", "_"), "continue.save");
+        try { return Files.isRegularFile(f) ? Files.getLastModifiedTime(f).toMillis() : -1; } catch (java.io.IOException e) { return -1; }
+    }
+
+    private static String ago(long at) {
+        long s = (System.currentTimeMillis() - at) / 1000;
+        return s < 120 ? "saved just now" : s < 3600 ? "saved " + s / 60 + " min ago" : s < 86400 ? "saved " + s / 3600 + " h ago" : "saved " + s / 86400 + " days ago";
     }
 
     private void newPlanet() { open(app(App.Id.BUILDER), List.of("-Dbuilder.run=new")); }
@@ -502,7 +626,7 @@ public final class Launcher {
         });
         c.add("open", "open <engine|builder|studio>", "open an app (engine: the chosen planet)", a -> {
             App app = app(a.str(0));
-            if (app.id == App.Id.ENGINE) playChosen(); else open(app, null);
+            if (app.id == App.Id.ENGINE) playChosen(sel < planets.size() && savedAt(planets.get(sel)) >= 0); else open(app, null);
             if (!app.isRunning()) throw new IllegalStateException(message);
             return app.title + ": starting";
         });
@@ -519,7 +643,17 @@ public final class Launcher {
             for (int i = 0; i < planets.size(); i++) if (planets.get(i).name().equalsIgnoreCase(w)) { sel = i; return null; }
             throw new IllegalArgumentException("no planet \"" + w + "\" (planets lists them)");
         });
-        c.add("play", "play", "play the chosen planet, as Play does", a -> { playChosen(); return message.isEmpty() || glfwGetTime() >= messageUntil ? "starting" : message; });
+        c.add("play", "play", "play the chosen planet, as Play (or Continue) does", a -> { playChosen(sel < planets.size() && savedAt(planets.get(sel)) >= 0); return message.isEmpty() || glfwGetTime() >= messageUntil ? "starting" : message; });
+        c.add("newgame", "newgame", "start the chosen planet fresh (its save is kept in older/)", a -> { playChosen(false); return "starting"; });
+        c.add("prepare", "prepare [2|8|16|play]", "the chosen planet's World disk size; with no value, open the choice", a -> {
+            if (sel >= planets.size()) throw new IllegalStateException("choose a planet first");
+            if (!a.has(0)) { askPrepare(false, false); return null; }
+            String w = a.str(0);
+            int gb = w.equalsIgnoreCase("play") ? 0 : Integer.parseInt(w);
+            setPrepared(planets.get(sel), gb);
+            justPrepared = gb > 0;
+            return planets.get(sel).name() + ": " + (gb > 0 ? gb + " GB" : "bake as I play");
+        });
         c.add("menu", "menu", "open the corner menu", a -> { menuAsked = true; return null; });
         c.add("options", "options", "open Options", a -> { optionsAsked = true; return null; });
         c.add("apps", "apps", "what each app is doing", a -> {
@@ -534,6 +668,8 @@ public final class Launcher {
         c.var("projects", "the folder that holds the repos", projects::get, v -> { projects.set(v); save(); rescan(); });
         c.var("moreShelves", "more folders of planets, separated by ;", moreShelves::get, v -> { moreShelves.set(v); save(); rescan(); });
         c.value("planet", "the chosen case", () -> sel < planets.size() ? planets.get(sel).name() : "new planet");
+        c.value("prepared", "the chosen planet's World disk size (GB; -1 bake as I play; none: not asked yet)", () -> {
+            Integer g = sel < planets.size() ? prepared(planets.get(sel)) : null; return g == null ? "none" : String.valueOf(g); });
         c.flag("agentConsole", "open the apps with their console port", () -> agentConsole, v -> { agentConsole = v; save(); });
         for (App app : apps) c.value("app." + app.id.name().toLowerCase(), "what it is doing", () -> { String l = app.lastLine(); return app.state().name().toLowerCase() + (l.isBlank() ? "" : ": " + l); });
     }
