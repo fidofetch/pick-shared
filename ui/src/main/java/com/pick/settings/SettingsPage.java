@@ -39,8 +39,14 @@ public final class SettingsPage {
         saved = file.snapshot();
     }
 
-    public boolean draw() {
+    public boolean draw() { return draw(s -> true); }
+
+    // One page of a split Settings (voxel's visor block, Pick 2026-11-15b F9 9: "one setting menu is starting to get
+    // cluttered"): only the sections `shown` lets through, then the footer and Back as always. Every section is still
+    // stored and saved, shown or not
+    public boolean draw(java.util.function.Predicate<SettingsSection> shown) {
         for (SettingsSection s : sections) {
+            if (!shown.test(s)) continue;
             ImGui.spacing();
             ImGui.textColored(Theme.ACCENT[0], Theme.ACCENT[1], Theme.ACCENT[2], 1f, s.title().toUpperCase());
             ImGui.separator();
