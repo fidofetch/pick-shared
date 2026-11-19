@@ -57,8 +57,8 @@ public final class SettingsPage {
         ImGui.spacing();
         footer.run();
         ImGui.spacing();
-        boolean back = ImGui.button("Back", ImGui.getContentRegionAvailX(), UiFonts.px(32));
-        ImGui.textDisabled("Changes are saved for next time.");
+        boolean back = ImGui.button(com.pick.text.Text.get("shared.settings.back") + "##back", ImGui.getContentRegionAvailX(), UiFonts.px(32));
+        ImGui.textDisabled(com.pick.text.Text.get("shared.settings.saved"));
         saveWhenSettled(back);
         return back;
     }

@@ -1,0 +1,29 @@
+# Words the shared screens use in every app (pick-shared ui): the settings page, the Text size names, the F9 panel.
+# Format: docs/text.md. Drawn in IBM Plex Sans. An app's own lang/<code>/shared.txt (beside the game) overrides this.
+
+settings.back       = Back
+settings.saved      = Changes are saved for next time.
+
+text_size.0         = Normal (100%)
+text_size.1         = Large (125%)
+text_size.2         = Larger (150%)
+text_size.3         = Largest (200%)
+
+# The F9 feedback panel. The note saved on disk stays in English (tools read it); these are only what the panel shows.
+feedback.chip       = Feedback  (F9)
+feedback.chip.tip   = Tell us about what you see right now: a bug, an idea, something to polish, or a question.\nIt takes a picture of the screen first.
+feedback.title      = FEEDBACK
+feedback.about      = About what was on screen when you pressed Feedback.
+feedback.category.0 = Bug
+feedback.category.1 = Feature idea
+feedback.category.2 = Polish
+feedback.category.3 = Question
+feedback.attach     = Attach the screenshot
+feedback.attach.tip = A picture of the app as it was when you pressed Feedback (without this panel).
+feedback.no_shot    = No screenshot could be taken.
+feedback.send       = Send
+feedback.send.empty = Write a few words first.
+feedback.sent       = Sent, thank you ({category})
+feedback.not_saved  = Could not save the note: {reason}
+feedback.cancel     = Cancel
+feedback.saved_in   = Saved in {path}

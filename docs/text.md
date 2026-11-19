@@ -57,3 +57,17 @@ off shows where a longer language will not fit.
 - `fieldMismatches(english, other)`: a translation keeps the same `{fields}`.
 - `glyphs(font)` + `notInFont(glyphs, lines)`: every character can be drawn by the font that shows it.
   Today: IBM Plex Sans has Latin, Cyrillic and Greek; the game's Atkinson Hyperlegible Next and VT323 have Latin only.
+
+## pick-shared's own files
+
+These sit in the jars, so an app's `lang/<code>/` folder beside the game can override them line by line:
+
+| File | Module | What |
+|---|---|---|
+| `units.txt` | ui | `Units` wording (m, km, cm, kg with imperial) |
+| `shared.txt` | ui | the settings page's Back line, the Text size names (`UiFonts.textScaleNames()`), the F9 panel |
+| `launcher.txt` | launcher | the shelf, the corner menu, Options, Prepare this world |
+
+An app must not name its own file `shared`, `units` or `launcher`. The F9 note on disk keeps English categories
+(tools read it); only the panel shows them translated. Consoles stay English in every app. `SharedTextFilesTest`
+checks these files against the code and the Plex font.

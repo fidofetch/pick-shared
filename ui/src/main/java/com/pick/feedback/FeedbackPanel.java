@@ -61,7 +61,7 @@ public final class FeedbackPanel {
     // How wide the chip is, for an app laying out its top bar around it
     public static float chipWidth() {
         var st = ImGui.getStyle();
-        return ImGui.calcTextSize("Feedback  (F9)").x + 2 * st.getFramePaddingX() + 2 * st.getWindowPaddingX();
+        return ImGui.calcTextSize(t("chip")).x + 2 * st.getFramePaddingX() + 2 * st.getWindowPaddingX();
     }
 
     public Path takeShotRequest() { Path p = shotRequest; shotRequest = null; return p; }
@@ -95,9 +95,9 @@ public final class FeedbackPanel {
         ImGui.begin("##feedbackchip", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings
                 | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoFocusOnAppearing);
         boolean recent = doneAt >= 0 && ImGui.getTime() - doneAt < 4;   // "sent" shows for a few seconds, then the chip is plain again
-        if (ImGui.smallButton(recent ? done + "##fb" : "Feedback  (F9)##fb")) stage = 1;
+        if (ImGui.smallButton((recent ? done : t("chip")) + "##fb")) stage = 1;
         if (ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.ForTooltip))
-            ImGui.setTooltip("Tell us about what you see right now: a bug, an idea, something to polish, or a question.\nIt takes a picture of the screen first.");
+            ImGui.setTooltip(t("chip.tip"));
         ImGui.end();
     }
 
@@ -106,46 +106,50 @@ public final class FeedbackPanel {
         ImGui.setNextWindowSizeConstraints(WIDTH, 0, WIDTH, winH - 60);
         ImGui.begin("##feedback", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings);
         ImGui.pushTextWrapPos(WIDTH - 24);
-        ImGui.textColored(Theme.ACCENT[0], Theme.ACCENT[1], Theme.ACCENT[2], 1f, "FEEDBACK");
-        ImGui.textDisabled("About what was on screen when you pressed Feedback.");
+        ImGui.textColored(Theme.ACCENT[0], Theme.ACCENT[1], Theme.ACCENT[2], 1f, t("title"));
+        ImGui.textDisabled(t("about"));
         ImGui.spacing();
         ImGui.setNextItemWidth(WIDTH - 24);
-        if (ImGui.beginCombo("##fbcat", FeedbackNotes.CATEGORIES.get(category))) {
+        if (ImGui.beginCombo("##fbcat", categoryName(category))) {
             for (int i = 0; i < FeedbackNotes.CATEGORIES.size(); i++)
-                if (ImGui.selectable(FeedbackNotes.CATEGORIES.get(i), i == category)) category = i;
+                if (ImGui.selectable(categoryName(i) + "##cat" + i, i == category)) category = i;
             ImGui.endCombo();
         }
         if (ImGui.isWindowAppearing()) ImGui.setKeyboardFocusHere();
         ImGui.inputTextMultiline("##fbtext", text, WIDTH - 24, 110);
         if (shotOk) {
-            if (ImGui.checkbox("Attach the screenshot", attach)) attach = !attach;
-            if (ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.ForTooltip)) ImGui.setTooltip("A picture of the app as it was when you pressed Feedback (without this panel).");
-        } else ImGui.textDisabled("No screenshot could be taken.");
+            if (ImGui.checkbox(t("attach") + "##attach", attach)) attach = !attach;
+            if (ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.ForTooltip)) ImGui.setTooltip(t("attach.tip"));
+        } else ImGui.textDisabled(t("no_shot"));
         ImGui.spacing();
         boolean empty = text.get().isBlank();
         ImGui.beginDisabled(empty);
         Theme.pushPrimary();
-        boolean send = ImGui.button("Send");
+        boolean send = ImGui.button(t("send") + "##send");
         Theme.popPrimary();
         ImGui.endDisabled();
-        if (empty && ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.setTooltip("Write a few words first.");
+        if (empty && ImGui.isItemHovered(imgui.flag.ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.setTooltip(t("send.empty"));
         if (send) {
             String cat = FeedbackNotes.CATEGORIES.get(category);
             boolean keep = shotOk && attach;
             try {
                 notes.write(when, cat, text.get(), keep ? shot : null, stateAtPress, fpsAtPress);
-                done = "Sent, thank you (" + cat.toLowerCase() + ")";
-            } catch (java.io.IOException e) { done = "Could not save the note: " + e.getMessage(); }
+                done = t("sent", "category", categoryName(category).toLowerCase(java.util.Locale.ROOT));
+            } catch (java.io.IOException e) { done = t("not_saved", "reason", e.getMessage()); }
             if (!keep) discardShot();
             doneAt = ImGui.getTime();
             close();
         }
         ImGui.sameLine();
-        if (ImGui.button("Cancel") || ImGui.isKeyPressed(ImGuiKey.Escape)) { discardShot(); close(); }
-        ImGui.textDisabled(("Saved in " + notes.dir().toAbsolutePath()).replace("%", "%%"));
+        if (ImGui.button(t("cancel") + "##cancel") || ImGui.isKeyPressed(ImGuiKey.Escape)) { discardShot(); close(); }
+        ImGui.textDisabled(t("saved_in", "path", notes.dir().toAbsolutePath()).replace("%", "%%"));
         ImGui.popTextWrapPos();
         ImGui.end();
     }
+
+    // The panel's words: shared.feedback.* in lang/<code>/shared.txt. The note on disk keeps the English category.
+    private static String t(String key, Object... fields) { return com.pick.text.Text.get("shared.feedback." + key, fields); }
+    private static String categoryName(int i) { return t("category." + i); }
 
     private Map<String, Object> safeState() {
         try { return state == null ? Map.of() : new java.util.LinkedHashMap<>(state.get()); }
