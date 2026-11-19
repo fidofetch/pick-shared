@@ -34,7 +34,9 @@ public final class TextCheck {
             if (!Files.isDirectory(root)) continue;
             try (Stream<Path> s = Files.walk(root)) {
                 for (Path p : (Iterable<Path>) s.filter(f -> f.toString().endsWith(".java"))::iterator) {
-                    Matcher m = GET.matcher(Files.readString(p));
+                    // comment lines left out (an example in a doc comment is not a key the code asks for)
+                    String code = Files.readString(p).replaceAll("(?m)^\\s*(//|\\*|/\\*).*$", "");
+                    Matcher m = GET.matcher(code);
                     while (m.find()) out.add(m.group(1));
                 }
             }

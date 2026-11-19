@@ -1,0 +1,95 @@
+# The launcher's start page (the shelf of planets), its corner menu, Options and Prepare this world.
+# Format: docs/text.md ({name} is filled in, \n is a line break). Drawn in IBM Plex Sans.
+# Its console (` or F1) stays in English, as every app's does.
+
+name                  = WORLDSEED
+menu                  = Menu
+menu.tip              = Build planets, Make maps, Options
+
+# The shelf and the chosen planet
+new.name              = New planet
+new.about             = Shape a world of your own in the Builder. It takes a while: a project, not a quick game.
+shelf.empty           = No planets yet. Bake one in the Builder and it appears here.
+about                 = {size}  ·  {when}
+about.size            = {dist} across
+about.made.now        = made just now
+about.made.hours      = made {n} h ago
+about.made.days       = made {n} days ago
+about.made.on         = made {date}
+
+# The big button under the chosen planet, and the quieter New game under it
+main.play             = Play
+main.play.tip         = walk this planet in first person (Enter, or double-click its case)
+main.continue         = Continue
+main.continue.tip     = back where you left off, {saved} (Enter, or double-click its case)
+main.new              = Make a new planet
+main.new.tip          = opens the Builder with a new planet
+main.stop             = Stop playing
+main.close_builder    = Close the Builder
+main.new_game         = New game
+main.new_game.tip     = start this planet fresh from the beginning (the old save is kept, in its older/ folder)
+saved.now             = saved just now
+saved.min             = saved {n} min ago
+saved.hours           = saved {n} h ago
+saved.days            = saved {n} days ago
+
+# What the app is doing, under the button
+status.starting       = starting (it builds first), {time}
+status.open           = open, {time}
+status.failed         = it stopped: {reason}
+status.log            = its log: {path}\nclick to open it
+say.cant_open         = couldn't open it: {reason}
+say.already_open      = a planet is already open: stop it first
+
+# The corner menu
+menu.workshop         = The workshop
+menu.builder          = Build planets
+menu.builder.tip      = make and shape planets, then bake them
+menu.studio           = Make maps
+menu.studio.tip       = maps of your newest baked planet, in the Studio
+menu.new              = New planet
+menu.disk             = World disk size...
+menu.disk.tip         = how much of this planet is baked ahead and kept on disk
+menu.options          = Options...
+menu.rescan           = Look for planets again
+menu.close            = Close: {app}
+menu.close.tip        = close it (it asks about unsaved work where it can)
+
+# Options
+options               = Options
+options.projects      = Projects folder
+options.projects.tip  = the folder that holds voxel, world-builder and pick-shared (each app is built from there)
+options.shelves       = Planets also from
+options.shelves.hint  = more folders, separated by ;
+options.shelves.tip   = folders of baked planets besides the Builder's own (a Builder's worlds folder, or World Packages)
+options.agent         = Agent console
+options.agent.tip     = open the apps with their console port, so an agent can drive them (engine 47100, Builder 47101; tools/console.py)
+options.motion        = Reduce motion
+options.motion.tip    = the shelf jumps instead of sliding, and the planets stop turning
+options.text          = Text size
+options.text.tip      = the size of the lettering here (each app has its own in its Settings)
+options.done          = Done
+
+# Prepare this world (World disk size): the four choices are prepare.<n>.name / time / what
+prepare               = Prepare this world
+prepare.for           = World disk size for {planet}
+prepare.about         = The game bakes this planet's ground ahead of time and keeps it on disk, so play is smoother and later starts are quick. It is a one-time cost: you can start playing after a minute or two, and it carries on in the background while you play.
+prepare.suggested     = {name}  (suggested)
+prepare.0.name        = 2 GB
+prepare.0.time        = about 10-30 min
+prepare.0.what        = the far view over the whole island, and finer ground round where you start
+prepare.1.name        = 8 GB
+prepare.1.time        = about 1-2 h
+prepare.1.what        = and the finest prepared ground over the densest forest near you, about 0.5 sq km (0.2 sq mi)
+prepare.2.name        = 16 GB
+prepare.2.time        = about 2-4 h
+prepare.2.what        = the finest prepared ground over about 1 sq km (0.4 sq mi)
+prepare.3.name        = Bake as I play
+prepare.3.time        = no wait
+prepare.3.what        = the ground bakes where you go, as before (up to 8 GB on disk)
+prepare.time.tip      = an estimate from one desktop (all cores); it runs in the background, so play starts much sooner
+prepare.no_space      = not enough free space on this drive
+prepare.free          = {gb} GB free on this drive. You can change this later (Menu, World disk size).
+prepare.start         = Start
+prepare.keep          = Keep this
+prepare.back          = Back

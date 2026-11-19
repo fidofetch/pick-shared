@@ -1,5 +1,8 @@
 package com.pick.launcher;
 
+import com.pick.text.Text;
+import com.pick.text.Units;
+
 import com.pick.console.Commands;
 import com.pick.console.CommandServer;
 import com.pick.console.ConsoleWindow;
@@ -186,7 +189,7 @@ public final class Launcher {
             ImGui.invisibleButton("##case" + i, w, w);
             if (ImGui.isItemClicked()) clicked = i;
             if (chosen && ImGui.isItemHovered() && ImGui.isMouseDoubleClicked(0)) playChosen(i < planets.size() && savedAt(planets.get(i)) >= 0);
-            if (!chosen && ImGui.isItemHovered()) ImGui.setTooltip(i < planets.size() ? planets.get(i).name() : "New planet");
+            if (!chosen && ImGui.isItemHovered()) ImGui.setTooltip(i < planets.size() ? planets.get(i).name() : t("new.name"));
         }
         if (clicked >= 0) sel = clicked;
 
@@ -199,13 +202,12 @@ public final class Launcher {
         // the chosen planet: its name, a line about it, and Play
         float ty = plankY + UiFonts.px(34);
         boolean isNew = sel >= planets.size();
-        String name = isNew ? "New planet" : planets.get(sel).name();
+        String name = isNew ? t("new.name") : planets.get(sel).name();
         ImGui.setWindowFontScale(1.5f);
         centred(name, ty, Theme.TEXT_RGB);
         ImGui.setWindowFontScale(1f);
         ty += ImGui.getTextLineHeight() * 1.5f + UiFonts.px(4);
-        String about = isNew ? "Shape a world of your own in the Builder. It takes a while: a project, not a quick game."
-                : about(planets.get(sel));
+        String about = isNew ? t("new.about") : about(planets.get(sel));
         centred(about, ty, Theme.MUTED_RGB);
         ty += ImGui.getTextLineHeight() + UiFonts.px(18);
 
@@ -217,20 +219,19 @@ public final class Launcher {
         ImGui.setCursorScreenPos(cx - bw / 2, ty);
         if (!running) Theme.pushPrimary();
         ImGui.setWindowFontScale(1.15f);
-        String label = running ? (isNew ? "Close the Builder" : "Stop playing") : isNew ? "Make a new planet" : savedAt >= 0 ? "Continue" : "Play";
+        String label = t(running ? (isNew ? "main.close_builder" : "main.stop") : isNew ? "main.new" : savedAt >= 0 ? "main.continue" : "main.play");
         if (ImGui.button(label + "##main", bw, bh)) { if (running) doing.stop(); else if (isNew) newPlanet(); else playChosen(savedAt >= 0); }
         ImGui.setWindowFontScale(1f);
         if (!running) Theme.popPrimary();
-        if (!running) Ui.tip(isNew ? "opens the Builder with a new planet" : savedAt >= 0 ? "back where you left off, " + ago(savedAt) + " (Enter, or double-click its case)"
-                : "walk this planet in first person (Enter, or double-click its case)");
+        if (!running) Ui.tip(isNew ? t("main.new.tip") : savedAt >= 0 ? t("main.continue.tip", "saved", ago(savedAt)) : t("main.play.tip"));
         ty += bh + UiFonts.px(8);
         if (!running && savedAt >= 0) {   // starting over is there, but quieter than Continue
             float nw = UiFonts.px(160);
             ImGui.setCursorScreenPos(cx - nw / 2, ty);
             Theme.pushOutlined();
-            if (ImGui.button("New game##new", nw, 0)) playChosen(false);
+            if (ImGui.button(t("main.new_game") + "##new", nw, 0)) playChosen(false);
             Theme.popOutlined();
-            Ui.tip("start this planet fresh from the beginning (the old save is kept, in its older/ folder)");
+            Ui.tip(t("main.new_game.tip"));
             ty += ImGui.getFrameHeight() + UiFonts.px(8);
             centred(ago(savedAt), ty, Theme.MUTED_RGB);
             ty += ImGui.getTextLineHeight() + UiFonts.px(6);
@@ -241,10 +242,10 @@ public final class Launcher {
             ImGui.setCursorScreenPos(cx - tw / 2, ty);
             if (doing.state() == App.State.FAILED) ImGui.textColored(Theme.WARN_TEXT[0], Theme.WARN_TEXT[1], Theme.WARN_TEXT[2], 1f, ellipsize(st, tw).replace("%", "%%"));
             else ImGui.textDisabled(ellipsize(st, tw).replace("%", "%%"));
-            if (ImGui.isItemHovered() && Files.exists(doing.log())) ImGui.setTooltip(("its log: " + doing.log() + "\nclick to open it").replace("%", "%%"));
+            if (ImGui.isItemHovered() && Files.exists(doing.log())) ImGui.setTooltip(t("status.log", "path", doing.log()).replace("%", "%%"));
             if (ImGui.isItemClicked() && Files.exists(doing.log())) openFile(doing.log());
         }
-        if (planets.isEmpty()) centred("No planets yet. Bake one in the Builder and it appears here.", ty + UiFonts.px(30), Theme.MUTED_RGB);
+        if (planets.isEmpty()) centred(t("shelf.empty"), ty + UiFonts.px(30), Theme.MUTED_RGB);
 
         // keys: left and right along the shelf, Enter plays
         if (!ImGui.getIO().getWantTextInput() && !ImGui.isPopupOpen("", imgui.flag.ImGuiPopupFlags.AnyPopupId)) {
@@ -257,17 +258,17 @@ public final class Launcher {
 
         // the name, quietly, and the corner menu: the workshop is there, not in the way
         ImGui.setCursorPos(pad, pad);
-        ImGui.textDisabled("WORLDSEED");
-        float mw = ImGui.calcTextSize("Menu").x + UiFonts.px(44);
+        ImGui.textDisabled(t("name"));
+        float mw = ImGui.calcTextSize(t("menu")).x + UiFonts.px(44);
         ImGui.setCursorPos(winW - pad - mw, pad - UiFonts.px(6));
-        if (ImGui.button("=  Menu##menu", mw, 0)) ImGui.openPopup("menu");
+        if (ImGui.button("=  " + t("menu") + "##menu", mw, 0)) ImGui.openPopup("menu");
         menuAt = new float[]{winW - pad, pad + ImGui.getFrameHeight()};
-        Ui.tip("Build planets, Make maps, Options");
+        Ui.tip(t("menu.tip"));
         if (menuAsked) { ImGui.openPopup("menu"); menuAsked = false; }
         menu();
-        if (optionsAsked) { ImGui.openPopup("Options"); optionsAsked = false; }
+        if (optionsAsked) { ImGui.openPopup("###options"); optionsAsked = false; }
         options();
-        if (prepAsked) { ImGui.openPopup("Prepare this world"); prepAsked = false; }
+        if (prepAsked) { ImGui.openPopup("###prepare"); prepAsked = false; }
         prepare();
 
         if (!message.isEmpty() && glfwGetTime() < messageUntil) {
@@ -362,17 +363,17 @@ public final class Launcher {
 
     private static String about(Planets.Planet p) {
         double km = 2 * p.radiusM() / 1000;
-        String size = km >= 10 ? String.format("%.0f km across", km) : String.format("%.1f km across", km);
+        String size = t("about.size", "dist", Units.distance(2 * p.radiusM()));
         long ago = (System.currentTimeMillis() - p.madeAt()) / 1000;
-        String when = ago < 3600 ? "made just now" : ago < 86400 ? "made " + ago / 3600 + " h ago" : ago < 86400 * 60 ? "made " + ago / 86400 + " days ago"
-                : "made " + java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(p.madeAt()), java.time.ZoneId.systemDefault());
-        return size + "  ·  " + when;
+        String when = ago < 3600 ? t("about.made.now") : ago < 86400 ? t("about.made.hours", "n", ago / 3600) : ago < 86400 * 60 ? t("about.made.days", "n", ago / 86400)
+                : t("about.made.on", "date", java.time.LocalDate.ofInstant(java.time.Instant.ofEpochMilli(p.madeAt()), java.time.ZoneId.systemDefault()));
+        return t("about", "size", size, "when", when);
     }
 
     private String status(App a) {
         return switch (a.state()) {
-            case RUNNING -> (a.lastLine().startsWith("starting") ? "starting (it builds first), " : "open, ") + clock(a.runningSeconds());
-            case FAILED -> "it stopped: " + a.reason();
+            case RUNNING -> t(a.lastLine().startsWith("starting") ? "status.starting" : "status.open", "time", clock(a.runningSeconds()));
+            case FAILED -> t("status.failed", "reason", a.reason());
             case CLOSED -> "";
         };
     }
@@ -391,22 +392,22 @@ public final class Launcher {
     private void menu() {
         ImGui.setNextWindowPos(menuAt[0], menuAt[1], ImGuiCond.Always, 1f, 0f);   // under its button, right edges lined up
         if (!ImGui.beginPopup("menu")) return;
-        ImGui.textDisabled("The workshop");
-        tool(app(App.Id.BUILDER), "Build planets", "make and shape planets, then bake them");
-        tool(app(App.Id.STUDIO), "Make maps", "maps of your newest baked planet, in the Studio");
-        if (ImGui.menuItem("New planet")) newPlanet();
+        ImGui.textDisabled(t("menu.workshop"));
+        tool(app(App.Id.BUILDER), t("menu.builder"), t("menu.builder.tip"));
+        tool(app(App.Id.STUDIO), t("menu.studio"), t("menu.studio.tip"));
+        if (ImGui.menuItem(t("menu.new"))) newPlanet();
         ImGui.separator();
-        if (sel < planets.size() && ImGui.menuItem("World disk size...")) askPrepare(false, false);
-        Ui.tip("how much of this planet is baked ahead and kept on disk");
-        if (ImGui.menuItem("Options...")) optionsAsked = true;
-        if (ImGui.menuItem("Look for planets again")) rescan();
+        if (sel < planets.size() && ImGui.menuItem(t("menu.disk"))) askPrepare(false, false);
+        Ui.tip(t("menu.disk.tip"));
+        if (ImGui.menuItem(t("menu.options"))) optionsAsked = true;
+        if (ImGui.menuItem(t("menu.rescan"))) rescan();
         ImGui.endPopup();
     }
 
     private void tool(App a, String title, String tip) {
         boolean running = a.isRunning();
-        if (ImGui.menuItem(running ? "Close: " + title : title, running ? clock(a.runningSeconds()) : "")) { if (running) a.stop(); else open(a, null); }
-        Ui.tip(running ? "close it (it asks about unsaved work where it can)" : tip);
+        if (ImGui.menuItem((running ? t("menu.close", "app", title) : title) + "##" + a.id, running ? clock(a.runningSeconds()) : "")) { if (running) a.stop(); else open(a, null); }
+        Ui.tip(running ? t("menu.close.tip") : tip);
         String st = a.state() == App.State.FAILED ? status(a) : "";
         if (!st.isEmpty()) { ImGui.textColored(Theme.WARN_TEXT[0], Theme.WARN_TEXT[1], Theme.WARN_TEXT[2], 1f, ellipsize(st, UiFonts.px(320)).replace("%", "%%")); if (ImGui.isItemClicked()) openFile(a.log()); }
     }
@@ -415,31 +416,31 @@ public final class Launcher {
         float vw = ImGui.getMainViewport().getSizeX(), vh = ImGui.getMainViewport().getSizeY();
         ImGui.setNextWindowSize(Math.min(UiFonts.px(560), vw - 32), 0, ImGuiCond.Always);
         ImGui.setNextWindowPos(vw / 2, vh / 2, ImGuiCond.Always, 0.5f, 0.5f);
-        if (!ImGui.beginPopupModal("Options", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize)) return;
-        ImGui.text("Projects folder");
+        if (!ImGui.beginPopupModal(t("options") + "###options", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize)) return;
+        ImGui.text(t("options.projects"));
         ImGui.setNextItemWidth(-1);
         if (ImGui.inputText("##projects", projects)) { save(); rescan(); }
-        Ui.tip("the folder that holds voxel, world-builder and pick-shared (each app is built from there)");
-        ImGui.text("Planets also from");
+        Ui.tip(t("options.projects.tip"));
+        ImGui.text(t("options.shelves"));
         ImGui.setNextItemWidth(-1);
-        if (ImGui.inputTextWithHint("##shelves", "more folders, separated by ;", moreShelves)) { save(); rescan(); }
-        Ui.tip("folders of baked planets besides the Builder's own (a Builder's worlds folder, or World Packages)");
-        if (ImGui.checkbox("Agent console", agentConsole)) { agentConsole = !agentConsole; save(); }
-        Ui.tip("open the apps with their console port, so an agent can drive them (engine 47100, Builder 47101; tools/console.py)");
-        if (ImGui.checkbox("Reduce motion", Motion.reduce)) { Motion.reduce = !Motion.reduce; save(); }
-        Ui.tip("the shelf jumps instead of sliding, and the planets stop turning");
-        ImGui.text("Text size");
+        if (ImGui.inputTextWithHint("##shelves", t("options.shelves.hint"), moreShelves)) { save(); rescan(); }
+        Ui.tip(t("options.shelves.tip"));
+        if (ImGui.checkbox(t("options.agent") + "##agent", agentConsole)) { agentConsole = !agentConsole; save(); }
+        Ui.tip(t("options.agent.tip"));
+        if (ImGui.checkbox(t("options.motion") + "##motion", Motion.reduce)) { Motion.reduce = !Motion.reduce; save(); }
+        Ui.tip(t("options.motion.tip"));
+        ImGui.text(t("options.text"));
         ImGui.sameLine();
         ImGui.setNextItemWidth(UiFonts.px(170));
         int ti = UiFonts.textScaleIndex(textScale);
-        if (ImGui.beginCombo("##text", UiFonts.TEXT_SCALE_NAMES[ti])) {
+        if (ImGui.beginCombo("##text", UiFonts.textScaleName(ti))) {
             for (int i = 0; i < UiFonts.TEXT_SCALES.length; i++)
-                if (ImGui.selectable(UiFonts.TEXT_SCALE_NAMES[i], i == ti)) { textScale = UiFonts.TEXT_SCALES[i]; save(); }
+                if (ImGui.selectable(UiFonts.textScaleName(i), i == ti)) { textScale = UiFonts.TEXT_SCALES[i]; save(); }
             ImGui.endCombo();
         }
-        Ui.tip("the size of the lettering here (each app has its own in its Settings)");
+        Ui.tip(t("options.text.tip"));
         ImGui.spacing();
-        if (ImGui.button("Done", UiFonts.px(120), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Escape)) ImGui.closeCurrentPopup();
+        if (ImGui.button(t("options.done") + "##done", UiFonts.px(120), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Escape)) ImGui.closeCurrentPopup();
         ImGui.endPopup();
     }
 
@@ -457,7 +458,7 @@ public final class Launcher {
         try {
             a.start(Path.of(projects.get().trim()), agentConsole, custom(a), extra);
         } catch (Exception e) {
-            say("couldn't open it: " + e.getMessage());
+            say(t("say.cant_open", "reason", e.getMessage()));
         }
     }
 
@@ -466,7 +467,7 @@ public final class Launcher {
         if (sel >= planets.size()) { newPlanet(); return; }
         var p = planets.get(sel);
         App engine = app(App.Id.ENGINE);
-        if (engine.isRunning()) { say("a planet is already open: stop it first"); return; }
+        if (engine.isRunning()) { say(t("say.already_open")); return; }
         if (prepared(p) == null) { askPrepare(true, cont); return; }
         lastPlanet = p.key();
         save();
@@ -485,13 +486,8 @@ public final class Launcher {
     // estimates from Pick's desktop (2026-11-11: 100-170 bricks a second on all cores, 6 KB per m2 at 12.5 cm), to be
     // replaced by a measured run; it carries on in the background in play.
     static final int[] PREP_GB = { 2, 8, 16, 0 };
-    static final String[] PREP_NAME = { "2 GB", "8 GB", "16 GB", "Bake as I play" };
-    static final String[] PREP_TIME = { "about 10-30 min", "about 1-2 h", "about 2-4 h", "no wait" };
-    static final String[] PREP_WHAT = {
-            "the far view over the whole island, and finer ground round where you start",
-            "and the finest prepared ground over the densest forest near you, about 0.5 sq km (0.2 sq mi)",
-            "the finest prepared ground over about 1 sq km (0.4 sq mi)",
-            "the ground bakes where you go, as before (up to 8 GB on disk)" };
+    // their words: prepare.<n>.name / .time / .what in launcher.txt, n = 0..3
+    static String prep(int i, String part) { return t("prepare." + i + "." + part); }
     private boolean prepAsked, prepThenPlay, prepContinue, justPrepared;
     private int prepChoice = 1;
 
@@ -524,39 +520,38 @@ public final class Launcher {
         float vw = ImGui.getMainViewport().getSizeX(), vh = ImGui.getMainViewport().getSizeY();
         ImGui.setNextWindowSize(Math.min(UiFonts.px(620), vw - 32), 0, ImGuiCond.Always);
         ImGui.setNextWindowPos(vw / 2, vh / 2, ImGuiCond.Always, 0.5f, 0.5f);
-        if (!ImGui.beginPopupModal("Prepare this world", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize)) return;
+        if (!ImGui.beginPopupModal(t("prepare") + "###prepare", ImGuiWindowFlags.NoResize | ImGuiWindowFlags.AlwaysAutoResize)) return;
         if (sel >= planets.size()) { ImGui.closeCurrentPopup(); ImGui.endPopup(); return; }
         var p = planets.get(sel);
         ImGui.pushTextWrapPos(0f);
-        ImGui.text(("World disk size for " + p.name()).replace("%", "%%"));
+        ImGui.text(t("prepare.for", "planet", p.name()).replace("%", "%%"));
         ImGui.textColored(Theme.MUTED_RGB[0], Theme.MUTED_RGB[1], Theme.MUTED_RGB[2], 1f,
-                "The game bakes this planet's ground ahead of time and keeps it on disk, so play is smoother and later starts are quick. "
-                + "It is a one-time cost: you can start playing after a minute or two, and it carries on in the background while you play.");
+                t("prepare.about").replace("%", "%%"));
         ImGui.popTextWrapPos();
         ImGui.spacing();
         long free = freeBytes();
         for (int i = 0; i < PREP_GB.length; i++) {
             boolean fits = PREP_GB[i] == 0 || PREP_GB[i] * 1e9 < free * 0.9;
             if (!fits) ImGui.beginDisabled();
-            if (ImGui.radioButton(PREP_NAME[i] + (i == 1 ? "  (suggested)" : "") + "##prep" + i, prepChoice == i)) prepChoice = i;
+            if (ImGui.radioButton((i == 1 ? t("prepare.suggested", "name", prep(i, "name")) : prep(i, "name")) + "##prep" + i, prepChoice == i)) prepChoice = i;
             if (!fits) ImGui.endDisabled();
             ImGui.sameLine(UiFonts.px(190));
-            ImGui.textDisabled(PREP_TIME[i]);
-            Ui.tip("an estimate from one desktop (all cores); it runs in the background, so play starts much sooner");
+            ImGui.textDisabled(prep(i, "time"));
+            Ui.tip(t("prepare.time.tip"));
             ImGui.indent(UiFonts.px(28));
             ImGui.pushTextWrapPos(0f);
-            ImGui.textColored(Theme.MUTED_RGB[0], Theme.MUTED_RGB[1], Theme.MUTED_RGB[2], 1f, fits ? PREP_WHAT[i] : "not enough free space on this drive");
+            ImGui.textColored(Theme.MUTED_RGB[0], Theme.MUTED_RGB[1], Theme.MUTED_RGB[2], 1f, fits ? prep(i, "what") : t("prepare.no_space"));
             ImGui.popTextWrapPos();
             ImGui.unindent(UiFonts.px(28));
         }
         ImGui.spacing();
-        if (free < Long.MAX_VALUE) ImGui.textDisabled(String.format(java.util.Locale.ROOT, "%.0f GB free on this drive. You can change this later (Menu, World disk size).", free / 1e9));
+        if (free < Long.MAX_VALUE) ImGui.textDisabled(t("prepare.free", "gb", Math.round(free / 1e9)).replace("%", "%%"));
         ImGui.spacing();
         Theme.pushPrimary();
-        boolean go = ImGui.button((prepThenPlay ? "Start" : "Keep this") + "##prepGo", UiFonts.px(150), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Enter);
+        boolean go = ImGui.button(t(prepThenPlay ? "prepare.start" : "prepare.keep") + "##prepGo", UiFonts.px(150), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Enter);
         Theme.popPrimary();
         ImGui.sameLine();
-        boolean back = ImGui.button("Back##prepBack", UiFonts.px(110), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Escape);
+        boolean back = ImGui.button(t("prepare.back") + "##prepBack", UiFonts.px(110), 0) || ImGui.isKeyPressed(imgui.flag.ImGuiKey.Escape);
         if (go) {
             setPrepared(p, PREP_GB[prepChoice]);
             justPrepared = true;
@@ -575,8 +570,11 @@ public final class Launcher {
 
     private static String ago(long at) {
         long s = (System.currentTimeMillis() - at) / 1000;
-        return s < 120 ? "saved just now" : s < 3600 ? "saved " + s / 60 + " min ago" : s < 86400 ? "saved " + s / 3600 + " h ago" : "saved " + s / 86400 + " days ago";
+        return s < 120 ? t("saved.now") : s < 3600 ? t("saved.min", "n", s / 60) : s < 86400 ? t("saved.hours", "n", s / 3600) : t("saved.days", "n", s / 86400);
     }
+
+    /** The launcher's words: lang/<code>/launcher.txt (docs/text.md). */
+    static String t(String key, Object... fields) { return Text.get("launcher." + key, fields); }
 
     private void newPlanet() { open(app(App.Id.BUILDER), List.of("-Dbuilder.run=new")); }
 

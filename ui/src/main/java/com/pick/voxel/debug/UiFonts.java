@@ -15,7 +15,15 @@ public final class UiFonts {
 
     public static final float BASE = 17f;
     public static final float[] TEXT_SCALES = {1f, 1.25f, 1.5f, 2f};
-    public static final String[] TEXT_SCALE_NAMES = {"Normal (100%)", "Large (125%)", "Larger (150%)", "Largest (200%)"};
+    /** English names, for apps not yet on lang/ files; textScaleNames() gives them in the player's language. */
+    public static final String[] TEXT_SCALE_NAMES = {"Normal (100%)", "Large (125%)", "Larger (150%)", "Largest (200%)"};   // text-ok
+    /** A Text size's name in the current language (shared.text_size.<i> in lang/<code>/shared.txt). */
+    public static String textScaleName(int i) { return com.pick.text.Text.get("shared.text_size." + i); }
+    public static String[] textScaleNames() {
+        String[] out = new String[TEXT_SCALES.length];
+        for (int i = 0; i < out.length; i++) out[i] = textScaleName(i);
+        return out;
+    }
     private static float sizesScaled = 1f, k = 1f, dpi = 1f;
 
     // Layout sizes written for Normal text on a plain monitor: px(380) is 380 there and grows with the text,
