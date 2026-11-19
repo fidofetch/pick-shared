@@ -1,0 +1,6 @@
+# Sizes in metric with imperial beside it (com.pick.text.Units). Change the order or the unit names here; the numbers
+# are filled in by the code. Shared by the game, the Builder and the launcher.
+m  = {m} m ({ft} ft)
+km = {km} km ({mi} mi)
+cm = {cm} cm ({in} in)
+kg = {kg} kg ({lb} lb)
