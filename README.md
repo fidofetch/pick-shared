@@ -7,6 +7,7 @@ Code the engine ([voxel](https://github.com/fidofetch/voxel)) and World Seed
 |---|---|---|
 | `ui` | The look and the controls: colours and widget styles (`Theme`), widget helpers (`Ui`), the font and Text size (`UiFonts`, IBM Plex Sans), easing that honours Reduce motion (`Motion`), the Feedback panel (F9), a small JSON writer (for feedback notes), and the Settings page frame with its file (`SettingsPage`, `SettingsSection`, `SettingsFile`), the player's words read from `lang/` files (`Text`, `Units`, `TextCheck`; [docs/text.md](docs/text.md)) | `com.pick.voxel.debug`, `com.pick.feedback`, `com.pick.util`, `com.pick.settings`, `com.pick.text` |
 | `console` | The command console (F1 or `) and the agent hook: commands, variables, watches and topics, the panel, the loopback server, `tools/console.py` | `com.pick.console` |
+| `weather` | The island weather grid: the Island Weather Lab's module in Java, bit for bit (pure Java, no UI; [docs/weather.md](docs/weather.md)) | `com.pick.weather` |
 
 `launcher` is the start page: the shelf of planets to play, with the Builder and the Studio in its corner menu
 ([docs/launcher.md](docs/launcher.md); `tools/launcher`). How every screen should look and read:

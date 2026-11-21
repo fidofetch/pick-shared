@@ -2,6 +2,7 @@
 // beside theirs (includeBuild("../pick-shared")), so a change here is used by both on their next build.
 //     ui       the look and the controls: Theme, Ui widgets, UiFonts (font, Text size), Motion, the Feedback panel
 //     console  the command console and the agent hook (docs/console.md)
+//     weather  the island weather grid (pure Java, no UI): the Island Weather Lab's module, docs/weather.md
 subprojects {
     apply(plugin = "java-library")
     group = "com.pick"
@@ -10,7 +11,7 @@ subprojects {
     tasks.withType<JavaCompile>().configureEach { options.release = 21 }
     extensions.configure<BasePluginExtension> { archivesName = "pick-" + project.name }   // pick-ui.jar, pick-console.jar in an app's lib/
     dependencies {
-        "api"("io.github.spair:imgui-java-binding:1.92.7.1")
+        if (project.name != "weather") "api"("io.github.spair:imgui-java-binding:1.92.7.1")   // weather: no UI
         // GLFW for UiFonts.contentScale; each app brings LWJGL itself, with its natives
         "compileOnly"(platform("org.lwjgl:lwjgl-bom:3.4.3"))
         "compileOnly"("org.lwjgl:lwjgl-glfw")
@@ -18,7 +19,7 @@ subprojects {
         "testImplementation"("org.junit.jupiter:junit-jupiter")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
-    tasks.withType<Test>().configureEach { useJUnitPlatform() }
+    tasks.withType<Test>().configureEach { useJUnitPlatform(); System.getProperty("weather.pkg")?.let { systemProperty("weather.pkg", it) } }
 }
 
 project(":console") {
