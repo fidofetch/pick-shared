@@ -1,2 +1,2 @@
 rootProject.name = "pick-shared"
-include("ui", "console", "launcher")
+include("ui", "console", "launcher", "weather")
