@@ -1,0 +1,6 @@
+{
+  "name": "job-watch",
+  "version": "0.1.0",
+  "description": "The Claude runs window inside Claude: long jobs (tools/jobs/job runs, background Bash, processes in other terminals) in a live pane, and a wake-up when one this session handed over ends, so agents need no timers.",
+  "types": "./types/index.d.ts"
+}

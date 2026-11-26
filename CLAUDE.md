@@ -10,3 +10,6 @@ shows it live; the first job opens the window. Details: [docs/jobs.md](docs/jobs
 Jobs queue so overlapping runs don't skew results: one at a time by default; `--measure` for timings or
 the GPU (the machine to itself), `--light` for seconds of small work. Run the app or game through `job` too,
 and close it when done. Quote the job's last line (`ran alone` / `overlapped with`) with any timing.
+With the job-watch mod installed (`tools/jobs/job-watch`), don't set a timer for a long job: start it detached
+(`nohup tools/jobs/job NAME -- ... &`) or hand it to its `watch` tool, end the turn, and a prompt wakes you when
+it ends.

@@ -1,0 +1,5 @@
+{
+  "name": "pick-shared",
+  "owner": { "name": "fidofetch" },
+  "plugins": [{ "name": "job-watch", "source": "./tools/jobs/job-watch" }]
+}
