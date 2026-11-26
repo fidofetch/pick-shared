@@ -64,3 +64,15 @@ machine: 71.0G used of 123.0G, 51.0G available   load 9.34 8.28 5.52
   distrobox. With no desktop (a cloud container) `open` just prints how to watch by hand.
 
 Linux only; needs bash and python3, nothing else.
+
+## Inside Claude: the job-watch mod
+
+[`tools/jobs/job-watch`](../tools/jobs/job-watch/README.md) is a Claude Code mod that shows the same runs in a
+pane beside the chat (Claude desktop or the terminal) and **wakes the session when its own job ends**, so an
+agent never sets a timer for one. Install: `/plugin install job-watch --marketplace fidofetch/pick-shared`.
+
+- Start a long job detached and end the turn: `nohup tools/jobs/job NAME -- cmd... >/dev/null 2>&1 &`. The
+  mod claims the run and a prompt arrives with its exit code and its `ran alone` / `overlapped with` line.
+- A job already running (another terminal, a run started before): `watch({ name, job: NAME })`, or by
+  `pid` / `match` for a process that isn't a `job` run.
+- Bash `run_in_background` needs neither: the harness wakes the session for those.
